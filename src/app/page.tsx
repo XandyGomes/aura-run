@@ -29,9 +29,18 @@ export default async function Home() {
   if (!token) {
     return (
       <div className={styles.container} style={{ justifyContent: 'center', textAlign: 'center' }}>
-        <h1 className="text-gradient-primary" style={{ marginBottom: '16px' }}>Aura Run</h1>
-        <p style={{ marginBottom: '40px' }}>Conecte seu Strava para que a Aura possa analisar seus treinos e criar planilhas inteligentes para você.</p>
-        <Link href="/api/auth/strava/login" className="btn-primary" style={{ display: 'inline-block' }}>
+        <div className="animate-fade-in" style={{ marginBottom: '24px' }}>
+          <Image
+            src="/logo.png"
+            alt="Aura Run Logo"
+            width={120}
+            height={120}
+            style={{ borderRadius: '24px', boxShadow: '0 10px 30px rgba(252, 76, 2, 0.3)' }}
+          />
+        </div>
+        <h1 className="text-gradient-primary" style={{ marginBottom: '16px', fontSize: '40px' }}>Aura Run</h1>
+        <p style={{ marginBottom: '40px', color: 'var(--text-dim)' }}>Conecte seu Strava para que a Aura possa analisar seus treinos e criar planilhas inteligentes para você.</p>
+        <Link href="/api/auth/strava/login" className="btn-primary" style={{ display: 'inline-block', padding: '16px 32px' }}>
           Conectar com Strava
         </Link>
       </div>
