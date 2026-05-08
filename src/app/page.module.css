@@ -1,0 +1,166 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 24px 20px 100px 20px;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.profileInfo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px solid var(--primary);
+  object-fit: cover;
+}
+
+.greeting {
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.userName {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.statCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.statLabel {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+
+.statValue {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.statUnit {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+.aiSection {
+  margin-bottom: 32px;
+}
+
+.aiCard {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--secondary-glow);
+  box-shadow: 0 0 20px var(--secondary-glow);
+}
+
+.aiCard::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, var(--secondary-glow) 0%, transparent 70%);
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.aiTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--secondary);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.aiSuggestion {
+  font-size: 15px;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+
+.sectionTitle {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.seeAll {
+  font-size: 14px;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.activityList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.navBar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 40px);
+  max-width: 400px;
+  height: 70px;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  z-index: 100;
+}
+
+.navItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.navItemActive {
+  color: var(--primary);
+}
+
+.navItemActive .navIcon {
+  filter: drop-shadow(0 0 8px var(--primary-glow));
+}
+
+.navIcon {
+  font-size: 24px;
+}

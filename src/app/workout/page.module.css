@@ -1,0 +1,144 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 40px 20px;
+  background: radial-gradient(circle at 50% 0%, rgba(0, 242, 255, 0.15) 0%, transparent 50%), var(--background);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.closeBtn {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  color: white;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.workoutTitle {
+  text-align: center;
+}
+
+.workoutTitle h1 {
+  font-size: 20px;
+  color: var(--secondary);
+}
+
+.workoutTitle p {
+  font-size: 14px;
+}
+
+.timerContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.time {
+  font-size: 80px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -2px;
+}
+
+.currentStep {
+  font-size: 24px;
+  font-weight: 600;
+  color: white;
+  text-align: center;
+}
+
+.nextStep {
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  width: 100%;
+  max-width: 300px;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.metricValue {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.metricLabel {
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.controls {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.playPauseBtn {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: none;
+  color: white;
+  font-size: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 0 20px var(--primary-glow);
+}
+
+.stopBtn {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  color: var(--error);
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.progressContainer {
+  width: 100%;
+  height: 4px;
+  background: var(--surface);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progressBar {
+  height: 100%;
+  background: var(--secondary);
+  box-shadow: 0 0 10px var(--secondary-glow);
+  transition: width 0.3s ease;
+}
