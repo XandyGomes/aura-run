@@ -9,11 +9,17 @@ export async function POST(request: Request) {
     const cookieStore = await cookies();
     const token = cookieStore.get('strava_token')?.value;
 
+    // Converte os papéis (roles) para o formato que a Groq entende
+    const formattedMessages = messages.map((m: any) => ({
+      role: m.role === 'aura' ? 'assistant' : m.role,
+      content: m.content
+    }));
+
     let activityContext = "O usuário ainda não conectou o Strava ou não há atividades recentes.";
     
     if (token) {
       try {
-        const stravaRes = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=10', {
+        const stravaRes = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=5', {
           headers: { Authorization: `Bearer ${token}` }
         });
         
@@ -24,22 +30,20 @@ export async function POST(request: Request) {
               nome: a.name,
               distancia: (a.distance / 1000).toFixed(2) + "km",
               data: new Date(a.start_date).toLocaleDateString('pt-BR'),
-              ritmo: a.average_speed ? (16.666 / a.average_speed).toFixed(2) + " min/km" : "N/A"
             }));
             activityContext = `Últimas atividades do usuário: ${JSON.stringify(summary)}`;
           }
         }
       } catch (e) {
-        console.error('Error fetching activities for chat:', e);
-        activityContext = "Erro ao buscar dados do Strava, responda de forma genérica.";
+        console.error('Strava Fetch Error:', e);
       }
     }
 
     const systemPrompt = {
       role: "system",
-      content: `Você é a Aura, uma treinadora de corrida de elite. 
+      content: `Você é a Aura, uma treinadora de corrida expert. 
       Dados do Atleta: ${activityContext}
-      Responda em Português do Brasil de forma motivadora e técnica.`
+      Responda de forma motivadora e técnica em Português.`
     };
 
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -50,21 +54,21 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
-        messages: [systemPrompt, ...messages],
+        messages: [systemPrompt, ...formattedMessages],
         temperature: 0.7,
       }),
     });
 
+    const data = await groqRes.json();
+
     if (!groqRes.ok) {
-      const errorData = await groqRes.json();
-      console.error('Groq API Error:', errorData);
-      return NextResponse.json({ message: "Desculpe, tive um problema ao processar sua resposta na Groq. Tente novamente." });
+      console.error('Groq Error:', data);
+      return NextResponse.json({ reply: "Tive um problema técnico com a IA. Pode tentar de novo?" });
     }
 
-    const data = await groqRes.json();
     return NextResponse.json({ reply: data.choices[0].message.content });
   } catch (error: any) {
-    console.error('Full Chat Route Error:', error);
-    return NextResponse.json({ reply: "Ocorreu um erro interno no chat. Por favor, tente novamente." }, { status: 200 });
+    console.error('Chat Route Error:', error);
+    return NextResponse.json({ reply: "Ops, algo deu errado. Vamos tentar de novo?" });
   }
 }
