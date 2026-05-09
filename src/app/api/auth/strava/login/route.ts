@@ -1,9 +1,19 @@
 import { NextResponse } from 'next/server';
-import { getStravaAuthUrl } from '@/lib/strava';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  const url = getStravaAuthUrl();
-  return NextResponse.redirect(url);
+export async function GET(request: Request) {
+  const { headers } = request;
+  const host = headers.get('host');
+  const protocol = host?.includes('localhost') ? 'http' : 'https';
+  const baseUrl = `${protocol}://${host}`;
+  
+  const clientId = process.env.STRAVA_CLIENT_ID;
+  const redirectUri = `${baseUrl}/api/auth/strava/callback`;
+  
+  const stravaUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=activity:read_all,read`;
+
+  console.log('Redirecting to Strava from:', baseUrl);
+  
+  return NextResponse.redirect(stravaUrl);
 }
