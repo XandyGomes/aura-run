@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
-import { exchangeToken } from '@/lib/strava';
 import { cookies } from 'next/headers';
+
+const STRAVA_CLIENT_ID = process.env.STRAVA_CLIENT_ID;
+const STRAVA_CLIENT_SECRET = process.env.STRAVA_CLIENT_SECRET;
 
 export const dynamic = 'force-dynamic';
 
@@ -17,19 +19,18 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL('/', request.url));
   }
 
+  if (!STRAVA_CLIENT_ID || !STRAVA_CLIENT_SECRET) {
+    console.error('Missing Strava credentials');
+    return new NextResponse('Configuração incompleta', { status: 500 });
+  }
+
   try {
-    // Forçando as credenciais para garantir que não haja erro de variável de ambiente
-    const clientId = '237783';
-    const clientSecret = 'c5f5ec1f6c4af546951e67c0534b972ff201ddd3';
-
-    console.log('Exchanging token for code:', code);
-
     const response = await fetch('https://www.strava.com/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        client_id: clientId,
-        client_secret: clientSecret,
+        client_id: STRAVA_CLIENT_ID,
+        client_secret: STRAVA_CLIENT_SECRET,
         code,
         grant_type: 'authorization_code',
       }),
@@ -45,13 +46,28 @@ export async function GET(request: Request) {
     const cookieStore = await cookies();
     cookieStore.set('strava_token', data.access_token, {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === 'production',
       maxAge: data.expires_in,
       path: '/',
+      sameSite: 'strict',
+    });
+
+    cookieStore.set('strava_refresh_token', data.refresh_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 60 * 60 * 24 * 30,
+      path: '/',
+      sameSite: 'strict',
     });
     
-    cookieStore.set('user_name', data.athlete.firstname, { path: '/' });
-    cookieStore.set('user_photo', data.athlete.profile_medium || data.athlete.profile || '', { path: '/' });
+    cookieStore.set('user_name', data.athlete.firstname, { 
+      path: '/',
+      sameSite: 'strict',
+    });
+    cookieStore.set('user_photo', data.athlete.profile_medium || data.athlete.profile || '', { 
+      path: '/',
+      sameSite: 'strict',
+    });
 
     return NextResponse.redirect(new URL('/', request.url));
   } catch (error: any) {

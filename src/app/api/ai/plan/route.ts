@@ -3,6 +3,20 @@ import { cookies } from 'next/headers';
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
+async function refreshToken(): Promise<boolean> {
+  try {
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://aura-run.vercel.app' 
+      : 'http://localhost:3000';
+    const refreshResponse = await fetch(`${baseUrl}/api/auth/strava/refresh`, {
+      method: 'POST',
+    });
+    return refreshResponse.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request: Request) {
   const { distance, raceDate, goalTime, level, weeklyKm } = await request.json();
 
@@ -11,15 +25,25 @@ export async function POST(request: Request) {
   }
 
   const cookieStore = await cookies();
-  const token = cookieStore.get('strava_token')?.value;
+  let token = cookieStore.get('strava_token')?.value;
 
-  // Fetch recent activities for context
   let activityContext = '';
   if (token) {
     const after = Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000);
-    const res = await fetch(`https://www.strava.com/api/v3/athlete/activities?per_page=5&after=${after}`, {
+    let res = await fetch(`https://www.strava.com/api/v3/athlete/activities?per_page=5&after=${after}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
+    
+    if (res.status === 401) {
+      const refreshed = await refreshToken();
+      if (refreshed) {
+        token = cookieStore.get('strava_token')?.value || '';
+        res = await fetch(`https://www.strava.com/api/v3/athlete/activities?per_page=5&after=${after}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      }
+    }
+    
     if (res.ok) {
       const acts = await res.json();
       if (acts.length > 0) {

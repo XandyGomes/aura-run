@@ -5,10 +5,33 @@ import { generateTrainingSuggestion } from "@/lib/gemini";
 import BottomNav from "@/components/BottomNav";
 import Link from "next/link";
 
+const ACTIVITY_ICONS: Record<string, { icon: string; color: string; label: string }> = {
+  Run: { icon: "🏃", color: "#FC4C02", label: "Corrida" },
+  Walk: { icon: "🚶", color: "#00F2FF", label: "Caminhada" },
+  Ride: { icon: "🚴", color: "#00D4AA", label: "Bike" },
+  Swim: { icon: "🏊", color: "#4A90D9", label: "Natação" },
+  Hike: { icon: "🥾", color: "#8B5CF6", label: "Trilha" },
+  Workout: { icon: "💪", color: "#F59E0B", label: "Treino" },
+};
+
+function getActivityInfo(type: string) {
+  return ACTIVITY_ICONS[type] || { icon: "📊", color: "#666", label: type };
+}
+
+function formatTime(seconds: number, showMs: boolean = false): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  if (showMs) {
+    const ms = Math.floor((seconds % 1) * 100);
+    return `${mins}:${secs.toString().padStart(2, "0")}.${ms.toString().padStart(2, "0")}`;
+  }
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
 async function getActivitiesData(token: string) {
   try {
     const after = Math.floor((Date.now() - 14 * 24 * 60 * 60 * 1000) / 1000);
-    const res = await fetch(`https://www.strava.com/api/v3/athlete/activities?per_page=10&after=${after}`, {
+    const res = await fetch(`https://www.strava.com/api/v3/athlete/activities?per_page=30&after=${after}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     if (!res.ok) return null;
@@ -80,6 +103,14 @@ export default async function Home() {
         .reduce((acc: number, curr: any) => acc + curr.distance, 0) / 1000
     : 0;
 
+  const lastWeekActivities = activities
+    ? activities.filter((a: any) => new Date(a.start_date).getTime() > oneWeekAgo)
+    : [];
+
+  const runsCount = lastWeekActivities.filter((a: any) => a.type === "Run").length;
+  const walksCount = lastWeekActivities.filter((a: any) => a.type === "Walk").length;
+  const ridesCount = lastWeekActivities.filter((a: any) => a.type === "Ride").length;
+
   let aiWorkout = "Analisando seus treinos para gerar a melhor recomendação...";
   if (activities && activities.length > 0) {
     aiWorkout = await generateTrainingSuggestion(activities);
@@ -112,8 +143,13 @@ export default async function Home() {
           <div className={styles.statValue}>{weeklyDist.toFixed(1)} <span className={styles.statUnit}>km</span></div>
         </div>
         <div className={`${styles.statCard} glass-card`}>
-          <span className={styles.statLabel}>Atividades (7 dias)</span>
-          <div className={styles.statValue}>{activities ? activities.filter((a: any) => new Date(a.start_date).getTime() > oneWeekAgo).length : 0} <span className={styles.statUnit}>corridas</span></div>
+          <span className={styles.statLabel}>Esta Semana</span>
+          <div style={{ display: "flex", gap: "8px", marginTop: "4px", flexWrap: "wrap" }}>
+            {runsCount > 0 && <span style={{ fontSize: "12px", color: "#FC4C02" }}>🏃 {runsCount}</span>}
+            {walksCount > 0 && <span style={{ fontSize: "12px", color: "#00F2FF" }}>🚶 {walksCount}</span>}
+            {ridesCount > 0 && <span style={{ fontSize: "12px", color: "#00D4AA" }}>🚴 {ridesCount}</span>}
+            {lastWeekActivities.length === 0 && <span style={{ fontSize: "12px", color: "var(--text-dim)" }}>Nenhuma atividade</span>}
+          </div>
         </div>
       </section>
 
@@ -144,18 +180,32 @@ export default async function Home() {
         <div className={styles.sectionTitle}><span>Suas Atividades</span><Link href="#" className={styles.seeAll}>Ver tudo</Link></div>
         <div className={styles.activityList}>
           {activities && activities.length > 0 ? (
-            activities.map((act: any) => (
-              <div key={act.id} className="glass-card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                <div>
-                  <h4 style={{ fontSize: "16px", fontWeight: "600" }}>{act.name}</h4>
-                  <p style={{ fontSize: "13px" }}>{(act.distance / 1000).toFixed(2)} km • {act.type}</p>
+            activities.map((act: any) => {
+              const activityInfo = getActivityInfo(act.type);
+              return (
+                <div key={act.id} className="glass-card" style={{ marginBottom: "12px", padding: "16px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <span style={{ fontSize: "24px" }}>{activityInfo.icon}</span>
+                      <div>
+                        <h4 style={{ fontSize: "16px", fontWeight: "600" }}>{act.name}</h4>
+                        <p style={{ fontSize: "12px", color: activityInfo.color }}>{activityInfo.label} • {(act.distance / 1000).toFixed(2)} km</p>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: "15px", fontWeight: "700" }}>{formatTime(act.moving_time, true)}</div>
+                      <div style={{ fontSize: "11px", color: "var(--text-dim)" }}>{new Date(act.start_date).toLocaleDateString("pt-BR")}</div>
+                    </div>
+                  </div>
+                  {act.map?.summary_polyline && (
+                    <div style={{ marginTop: "8px", padding: "8px", background: "rgba(0,0,0,0.2)", borderRadius: "8px", display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ fontSize: "14px" }}>🗺️</span>
+                      <span style={{ fontSize: "12px", color: "var(--text-dim)" }}>Ruta disponível • Clique para ver no mapa</span>
+                    </div>
+                  )}
                 </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: "15px", fontWeight: "700" }}>{Math.floor(act.moving_time / 60)}:{(act.moving_time % 60).toString().padStart(2, "0")}</div>
-                  <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>{new Date(act.start_date).toLocaleDateString("pt-BR")}</div>
-                </div>
-              </div>
-            ))
+              );
+            })
           ) : (<p style={{ textAlign: "center", color: "var(--text-dim)" }}>Nenhuma atividade encontrada.</p>)}
         </div>
       </section>
