@@ -1,9 +1,9 @@
 import styles from "./page.module.css";
 import { cookies } from 'next/headers';
-import Link from 'next/link';
 import Image from 'next/image';
 import { generateTrainingSuggestion } from '@/lib/gemini';
 import BottomNav from '@/components/BottomNav';
+import Link from 'next/link';
 
 async function getActivitiesData(token: string) {
   const after = Math.floor((Date.now() - 14 * 24 * 60 * 60 * 1000) / 1000);
@@ -40,9 +40,9 @@ export default async function Home() {
         </div>
         <h1 className="text-gradient-primary" style={{ marginBottom: '16px', fontSize: '40px' }}>Aura Run</h1>
         <p style={{ marginBottom: '40px', color: 'var(--text-dim)' }}>Conecte seu Strava para que a Aura possa analisar seus treinos e criar planilhas inteligentes para você.</p>
-        <Link href="/api/auth/strava/login" className="btn-primary" style={{ display: 'inline-block', padding: '16px 32px' }}>
+        <a href="/api/auth/strava/login" className="btn-primary" style={{ display: 'inline-block', padding: '16px 32px', textDecoration: 'none' }}>
           Conectar com Strava
-        </Link>
+        </a>
         <div style={{ marginTop: '32px', fontSize: '11px', color: 'rgba(255,255,255,0.3)', letterSpacing: '2px', fontWeight: '600' }}>
           BY XANDY GOMES
         </div>
@@ -58,7 +58,6 @@ export default async function Home() {
   const userName = athlete?.firstname || 'Atleta';
   const userPhoto = athlete?.profile_medium || athlete?.profile || '';
 
-  // Distância real dos últimos 7 dias
   const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const weeklyDist = activities
     ? activities
@@ -66,7 +65,6 @@ export default async function Home() {
         .reduce((acc: number, curr: any) => acc + curr.distance, 0) / 1000
     : 0;
 
-  // Treino gerado pela IA
   let aiWorkout = "Analisando seus treinos para gerar a melhor recomendação...";
   if (activities && activities.length > 0) {
     aiWorkout = await generateTrainingSuggestion(activities);
@@ -74,18 +72,11 @@ export default async function Home() {
 
   return (
     <div className={styles.container}>
-      {/* Header */}
       <header className={`${styles.header} animate-fade-in`}>
         <div className={styles.profileInfo}>
           <div className={styles.avatar}>
             {userPhoto ? (
-              <Image
-                src={userPhoto}
-                alt={`Foto de ${userName}`}
-                width={48}
-                height={48}
-                style={{ borderRadius: '50%', objectFit: 'cover', border: '2px solid #FC4C02' }}
-              />
+              <Image src={userPhoto} alt={userName} width={48} height={48} style={{ borderRadius: '50%', objectFit: 'cover', border: '2px solid #FC4C02' }} />
             ) : (
               <div style={{ width: '100%', height: '100%', background: 'linear-gradient(45deg, #FC4C02, #FF9500)', borderRadius: '50%' }}></div>
             )}
@@ -100,44 +91,27 @@ export default async function Home() {
         </div>
       </header>
 
-      {/* Stats Summary */}
       <section className={`${styles.statsGrid} animate-fade-in`} style={{ animationDelay: '0.1s' }}>
         <div className={`${styles.statCard} glass-card`}>
           <span className={styles.statLabel}>Distância (7 dias)</span>
-          <div className={styles.statValue}>
-            {weeklyDist.toFixed(1)} <span className={styles.statUnit}>km</span>
-          </div>
+          <div className={styles.statValue}>{weeklyDist.toFixed(1)} <span className={styles.statUnit}>km</span></div>
         </div>
         <div className={`${styles.statCard} glass-card`}>
           <span className={styles.statLabel}>Atividades (7 dias)</span>
-          <div className={styles.statValue}>
-            {activities
-              ? activities.filter((a: any) => new Date(a.start_date).getTime() > oneWeekAgo).length
-              : 0}
-            <span className={styles.statUnit}> corridas</span>
-          </div>
+          <div className={styles.statValue}>{activities ? activities.filter((a: any) => new Date(a.start_date).getTime() > oneWeekAgo).length : 0} <span className={styles.statUnit}>corridas</span></div>
         </div>
       </section>
 
-      {/* AI Coach */}
       <section className={`${styles.aiSection} animate-fade-in`} style={{ animationDelay: '0.2s' }}>
         <div className={`${styles.aiCard} glass-card`}>
-          <div className={styles.aiTitle}>
-            <span>✨</span>
-            <span>Seu Treino Aura para Hoje</span>
-          </div>
+          <div className={styles.aiTitle}><span>✨</span><span>Seu Treino Aura para Hoje</span></div>
           <div style={{ margin: '16px 0', borderLeft: '2px solid var(--secondary)', paddingLeft: '12px' }}>
-            <div className={styles.aiSuggestion} style={{ fontSize: '14px', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
-              {aiWorkout}
-            </div>
+            <div className={styles.aiSuggestion} style={{ fontSize: '14px', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>{aiWorkout}</div>
           </div>
-          <Link href="/workout" className="btn-ai" style={{ width: '100%', display: 'block', textAlign: 'center' }}>
-            Iniciar Treino
-          </Link>
+          <Link href="/workout" className="btn-ai" style={{ width: '100%', display: 'block', textAlign: 'center' }}>Iniciar Treino</Link>
         </div>
       </section>
 
-      {/* Race Plan Card */}
       <section className="animate-fade-in" style={{ animationDelay: '0.25s', marginBottom: '24px' }}>
         <Link href="/plan" style={{ textDecoration: 'none', display: 'block' }}>
           <div className="glass-card" style={{ background: 'linear-gradient(135deg, rgba(0,242,255,0.1) 0%, rgba(0,114,255,0.1) 100%)', border: '1px solid rgba(0,242,255,0.3)', display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -151,12 +125,8 @@ export default async function Home() {
         </Link>
       </section>
 
-      {/* Recent Activities */}
       <section style={{ animationDelay: '0.3s' }}>
-        <div className={styles.sectionTitle}>
-          <span>Suas Atividades</span>
-          <Link href="#" className={styles.seeAll}>Ver tudo</Link>
-        </div>
+        <div className={styles.sectionTitle}><span>Suas Atividades</span><Link href="#" className={styles.seeAll}>Ver tudo</Link></div>
         <div className={styles.activityList}>
           {activities && activities.length > 0 ? (
             activities.map((act: any) => (
@@ -166,18 +136,12 @@ export default async function Home() {
                   <p style={{ fontSize: '13px' }}>{(act.distance / 1000).toFixed(2)} km • {act.type}</p>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '15px', fontWeight: '700' }}>
-                    {Math.floor(act.moving_time / 60)}:{(act.moving_time % 60).toString().padStart(2, '0')}
-                  </div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
-                    {new Date(act.start_date).toLocaleDateString('pt-BR')}
-                  </div>
+                  <div style={{ fontSize: '15px', fontWeight: '700' }}>{Math.floor(act.moving_time / 60)}:{(act.moving_time % 60).toString().padStart(2, '0')}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-dim)' }}>{new Date(act.start_date).toLocaleDateString('pt-BR')}</div>
                 </div>
               </div>
             ))
-          ) : (
-            <p style={{ textAlign: 'center', color: 'var(--text-dim)' }}>Nenhuma atividade neste período.</p>
-          )}
+          ) : (<p style={{ textAlign: 'center', color: 'var(--text-dim)' }}>Nenhuma atividade encontrada.</p>)}
         </div>
       </section>
 
