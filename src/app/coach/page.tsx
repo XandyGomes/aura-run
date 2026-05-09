@@ -32,10 +32,12 @@ export default function CoachPage() {
       const res = await fetch('/api/coach/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage }),
+        body: JSON.stringify({ 
+          messages: [...messages, { role: 'user', content: userMessage }] 
+        }),
       });
       const data = await res.json();
-      setMessages(prev => [...prev, { role: 'aura', content: data.reply }]);
+      setMessages(prev => [...prev, { role: 'aura', content: data.reply || data.message }]);
     } catch {
       setMessages(prev => [...prev, { role: 'aura', content: 'Ops, tive um problema de conexão. Tente novamente!' }]);
     } finally {

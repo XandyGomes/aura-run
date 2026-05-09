@@ -62,9 +62,9 @@ export async function POST(request: Request) {
     }
 
     const data = await groqRes.json();
-    return NextResponse.json({ message: data.choices[0].message.content });
+    return NextResponse.json({ reply: data.choices[0].message.content });
   } catch (error: any) {
     console.error('Full Chat Route Error:', error);
-    return NextResponse.json({ message: "Ocorreu um erro interno no chat. Por favor, tente novamente." }, { status: 200 }); // Retornando 200 para não quebrar a UI
+    return NextResponse.json({ reply: "Ocorreu um erro interno no chat. Por favor, tente novamente." }, { status: 200 });
   }
 }
