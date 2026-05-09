@@ -43,6 +43,9 @@ export default async function Home() {
         <Link href="/api/auth/strava/login" className="btn-primary" style={{ display: 'inline-block', padding: '16px 32px' }}>
           Conectar com Strava
         </Link>
+        <div style={{ marginTop: '32px', fontSize: '11px', color: 'rgba(255,255,255,0.3)', letterSpacing: '2px', fontWeight: '600' }}>
+          BY XANDY GOMES
+        </div>
       </div>
     );
   }

@@ -27,6 +27,9 @@ export default function BottomNav() {
           <span>{item.label}</span>
         </Link>
       ))}
+      <div style={{ position: 'absolute', bottom: '-20px', width: '100%', textAlign: 'center', fontSize: '10px', color: 'rgba(255,255,255,0.2)', letterSpacing: '1px', fontWeight: '500' }}>
+        BY XANDY GOMES
+      </div>
     </nav>
   );
 }
