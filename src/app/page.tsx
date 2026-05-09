@@ -55,9 +55,12 @@ export default async function Home() {
         >
           Conectar com Strava
         </a>
-        <div style={{ marginTop: "32px", fontSize: "11px", color: "rgba(255,255,255,0.3)", letterSpacing: "2px", fontWeight: "600" }}>
+        <div style={{ marginTop: '32px', fontSize: '11px', color: 'rgba(255,255,255,0.3)', letterSpacing: '2px', fontWeight: '600' }}>
           BY XANDY GOMES
         </div>
+        <a href="/api/auth/logout" style={{ marginTop: '20px', display: 'block', fontSize: '12px', color: 'var(--secondary)', textDecoration: 'none', opacity: 0.6 }}>
+          Limpar e Tentar Novamente
+        </a>
       </div>
     );
   }
