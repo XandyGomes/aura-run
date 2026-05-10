@@ -11,6 +11,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Aura Run | AI Running Coach",
   description: "Treinos inteligentes baseados no seu ritmo, batimentos e performance no Strava.",
+  manifest: "/manifest.json",
   icons: {
     icon: [
       { url: "/logo.png", type: "image/png" },
@@ -25,6 +26,7 @@ export const viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  themeColor: "#080810",
 };
 
 export default function RootLayout({
