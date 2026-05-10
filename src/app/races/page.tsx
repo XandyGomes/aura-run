@@ -13,6 +13,7 @@ interface Race {
   goalTime: string;
   notes: string;
   status: 'upcoming' | 'completed' | 'cancelled';
+  kitDate?: string;
 }
 
 const DISTANCES = ['5km', '10km', '15km', '21km (Meia)', '42km (Maratona)', 'Trail', 'Outro'];
@@ -42,8 +43,9 @@ export default function RacesPage() {
   const [races, setRaces] = useState<Race[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', date: '', distance: '10km', city: '', goalTime: '', notes: '' });
+  const [form, setForm] = useState({ name: '', date: '', distance: '10km', city: '', goalTime: '', notes: '', kitDate: '', customDistance: '' });
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming');
+  const [isCustom, setIsCustom] = useState(false);
 
   useEffect(() => {
     try {
@@ -58,23 +60,46 @@ export default function RacesPage() {
   };
 
   const openAdd = () => {
-    setForm({ name: '', date: '', distance: '10km', city: '', goalTime: '', notes: '' });
+    setForm({ name: '', date: '', distance: '10km', city: '', goalTime: '', notes: '', kitDate: '', customDistance: '' });
     setEditId(null);
+    setIsCustom(false);
     setShowForm(true);
   };
 
   const openEdit = (r: Race) => {
-    setForm({ name: r.name, date: r.date, distance: r.distance, city: r.city, goalTime: r.goalTime, notes: r.notes });
+    const isCustomDist = !DISTANCES.includes(r.distance);
+    setForm({ 
+      name: r.name, 
+      date: r.date, 
+      distance: isCustomDist ? 'Outro' : r.distance, 
+      city: r.city, 
+      goalTime: r.goalTime, 
+      notes: r.notes, 
+      kitDate: r.kitDate || '',
+      customDistance: isCustomDist ? r.distance : ''
+    });
+    setIsCustom(isCustomDist);
     setEditId(r.id);
     setShowForm(true);
   };
 
   const submit = () => {
     if (!form.name || !form.date) return;
+    const finalDistance = isCustom ? form.customDistance : form.distance;
+    const data = { 
+      name: form.name, 
+      date: form.date, 
+      distance: finalDistance || form.distance, 
+      city: form.city, 
+      goalTime: form.goalTime, 
+      notes: form.notes,
+      kitDate: form.kitDate
+    };
+
     if (editId) {
-      save(races.map(r => r.id === editId ? { ...r, ...form } : r));
+      save(races.map(r => r.id === editId ? { ...r, ...data } : r));
     } else {
-      const newRace: Race = { id: Date.now().toString(), ...form, status: 'upcoming' };
+      const newRace: Race = { id: Date.now().toString(), ...data, status: 'upcoming' };
       save([...races, newRace].sort((a, b) => a.date.localeCompare(b.date)));
     }
     setShowForm(false);
@@ -122,6 +147,17 @@ export default function RacesPage() {
                 <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontWeight: '600', textTransform: 'uppercase' }}>dias</div>
               </div>
             </div>
+
+            {nextRace.kitDate && daysUntil(nextRace.kitDate) === 0 && (
+              <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(255,77,0,0.1)', border: '1px solid #FF4D00', borderRadius: '14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '20px' }}>🎁</span>
+                <div>
+                  <p style={{ fontSize: '13px', fontWeight: '800', color: '#FF4D00' }}>HOJE: Retirada de Kit!</p>
+                  <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>Não esqueça seus documentos para {nextRace.name}.</p>
+                </div>
+              </div>
+            )}
+
             {nextRace.goalTime && (
               <Link href={`/plan?distance=${nextRace.distance}&date=${nextRace.date}&goal=${nextRace.goalTime}`} style={{ textDecoration: 'none' }}>
                 <div style={{ marginTop: '14px', padding: '10px 16px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -173,6 +209,11 @@ export default function RacesPage() {
                     <span style={{ fontSize: '12px', fontWeight: '700', color: '#FF4D00', background: 'rgba(255,77,0,0.1)', padding: '3px 10px', borderRadius: '8px' }}>{r.distance}</span>
                     {r.city && <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.05)', padding: '3px 10px', borderRadius: '8px' }}>📍 {r.city}</span>}
                     {r.goalTime && <span style={{ fontSize: '12px', color: '#00E5A0', background: 'rgba(0,229,160,0.08)', padding: '3px 10px', borderRadius: '8px' }}>🎯 {r.goalTime}</span>}
+                    {r.kitDate && (
+                      <span style={{ fontSize: '12px', fontWeight: '700', color: daysUntil(r.kitDate) === 0 ? '#FF4D00' : 'rgba(255,255,255,0.4)', background: daysUntil(r.kitDate) === 0 ? 'rgba(255,77,0,0.15)' : 'rgba(255,255,255,0.05)', padding: '3px 10px', borderRadius: '8px', border: daysUntil(r.kitDate) === 0 ? '1px solid rgba(255,77,0,0.3)' : 'none' }}>
+                        🎁 Kit: {daysUntil(r.kitDate) === 0 ? 'HOJE!' : daysUntil(r.kitDate) === 1 ? 'Amanhã' : fmtDate(r.kitDate)}
+                      </span>
+                    )}
                   </div>
                   {r.notes && <p style={{ marginTop: '10px', fontSize: '12px', color: 'rgba(255,255,255,0.35)', lineHeight: '1.5', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>{r.notes}</p>}
                 </div>
@@ -199,9 +240,10 @@ export default function RacesPage() {
               {[
                 { label: 'Nome da Corrida *', key: 'name', placeholder: 'Ex: Corrida do Parque 2025', type: 'text' },
                 { label: 'Data *', key: 'date', placeholder: '', type: 'date' },
+                { label: 'Data Retirada do Kit', key: 'kitDate', placeholder: '', type: 'date' },
                 { label: 'Cidade', key: 'city', placeholder: 'Ex: São Paulo - SP', type: 'text' },
                 { label: 'Tempo Meta', key: 'goalTime', placeholder: 'Ex: 55:00', type: 'text' },
-                { label: 'Anotações', key: 'notes', placeholder: 'Lembrete, kit, largada...', type: 'text' },
+                { label: 'Anotações', key: 'notes', placeholder: 'Lembrete, largada...', type: 'text' },
               ].map(f => (
                 <div key={f.key}>
                   <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.8px', display: 'block', marginBottom: '6px' }}>{f.label}</label>
@@ -217,13 +259,22 @@ export default function RacesPage() {
 
               <div>
                 <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.8px', display: 'block', marginBottom: '6px' }}>Distância</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: isCustom ? '12px' : '0' }}>
                   {DISTANCES.map(d => (
-                    <button key={d} onClick={() => setForm(p => ({ ...p, distance: d }))} style={{ padding: '8px 14px', borderRadius: '10px', border: form.distance === d ? 'none' : '1px solid rgba(255,255,255,0.1)', background: form.distance === d ? 'linear-gradient(135deg,#FF4D00,#FF7340)' : 'rgba(255,255,255,0.05)', color: 'white', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', boxShadow: form.distance === d ? '0 4px 12px rgba(255,77,0,0.3)' : 'none' }}>
+                    <button key={d} onClick={() => { setForm(p => ({ ...p, distance: d })); setIsCustom(d === 'Outro'); }} style={{ padding: '8px 14px', borderRadius: '10px', border: form.distance === d ? 'none' : '1px solid rgba(255,255,255,0.1)', background: form.distance === d ? 'linear-gradient(135deg,#FF4D00,#FF7340)' : 'rgba(255,255,255,0.05)', color: 'white', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', boxShadow: form.distance === d ? '0 4px 12px rgba(255,77,0,0.3)' : 'none' }}>
                       {d}
                     </button>
                   ))}
                 </div>
+                {isCustom && (
+                  <input
+                    type="text"
+                    value={form.customDistance}
+                    onChange={e => setForm(prev => ({ ...prev, customDistance: e.target.value }))}
+                    placeholder="Ex: 6km, 8km, 12km..."
+                    style={{ width: '100%', padding: '12px 14px', borderRadius: '12px', background: 'rgba(255,77,0,0.05)', border: '1px solid rgba(255,77,0,0.3)', color: 'white', fontSize: '15px', outline: 'none', fontFamily: 'inherit', marginTop: '8px' }}
+                  />
+                )}
               </div>
 
               <button onClick={submit} disabled={!form.name || !form.date} className="btn-primary" style={{ width: '100%', marginTop: '8px', opacity: (!form.name || !form.date) ? 0.5 : 1 }}>

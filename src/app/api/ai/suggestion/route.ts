@@ -6,12 +6,12 @@ import { cookies } from 'next/headers';
 // Desabilita cache para garantir sugestão sempre atualizada
 export const dynamic = 'force-dynamic';
 
-const getBaseUrl = () =>
-  process.env.NODE_ENV === 'production' ? 'https://aura-run.vercel.app' : 'http://localhost:3000';
-
-async function tryRefreshToken(): Promise<boolean> {
+async function tryRefreshToken(req: Request): Promise<boolean> {
   try {
-    const res = await fetch(`${getBaseUrl()}/api/auth/strava/refresh`, { method: 'POST' });
+    const host = req.headers.get('host');
+    const protocol = host?.includes('localhost') ? 'http' : 'https';
+    const baseUrl = `${protocol}://${host}`;
+    const res = await fetch(`${baseUrl}/api/auth/strava/refresh`, { method: 'POST' });
     return res.ok;
   } catch {
     return false;
@@ -89,7 +89,7 @@ Responda em PORTUGUÊS seguindo este formato:
 Seja técnico, motivador e baseado nos dados reais. Foco em evolução e prevenção de lesões.`;
 };
 
-export async function GET() {
+export async function GET(req: Request) {
   const cookieStore = await cookies();
   let token = cookieStore.get('strava_token')?.value;
 
@@ -102,7 +102,7 @@ export async function GET() {
 
     // Se o token expirou, tenta renovar
     if (activities.errors || activities.message?.includes('Unauthorized')) {
-      const refreshed = await tryRefreshToken();
+      const refreshed = await tryRefreshToken(req);
       if (!refreshed) {
         return NextResponse.json({ error: 'Sessão expirada. Faça login novamente.' }, { status: 401 });
       }
