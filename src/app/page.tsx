@@ -1,214 +1,296 @@
-import styles from "./page.module.css";
 import { cookies } from "next/headers";
 import Image from "next/image";
+import Link from "next/link";
 import { generateTrainingSuggestion } from "@/lib/gemini";
 import BottomNav from "@/components/BottomNav";
-import Link from "next/link";
 
-const ACTIVITY_ICONS: Record<string, { icon: string; color: string; label: string }> = {
-  Run: { icon: "🏃", color: "#FC4C02", label: "Corrida" },
-  Walk: { icon: "🚶", color: "#00F2FF", label: "Caminhada" },
-  Ride: { icon: "🚴", color: "#00D4AA", label: "Bike" },
-  Swim: { icon: "🏊", color: "#4A90D9", label: "Natação" },
-  Hike: { icon: "🥾", color: "#8B5CF6", label: "Trilha" },
-  Workout: { icon: "💪", color: "#F59E0B", label: "Treino" },
+// ── Helpers ────────────────────────────────────────────────────────
+const actColor: Record<string, string> = {
+  Run: "#FF4D00", Walk: "#00E5FF", Ride: "#00E5A0",
+  Swim: "#4A90E2", Hike: "#A78BFA", Workout: "#FFB020",
+};
+const actIcon: Record<string, string> = {
+  Run: "🏃", Walk: "🚶", Ride: "🚴", Swim: "🏊", Hike: "🥾", Workout: "💪",
 };
 
-function getActivityInfo(type: string) {
-  return ACTIVITY_ICONS[type] || { icon: "📊", color: "#666", label: type };
+function fmtPace(dist: number, time: number): string {
+  if (!dist || !time) return "--:--";
+  const s = time / (dist / 1000);
+  return `${Math.floor(s / 60)}:${(Math.floor(s % 60)).toString().padStart(2, "0")}`;
+}
+function fmtMovingTime(sec: number): string {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  return h > 0 ? `${h}h ${m}min` : `${m}min`;
+}
+function fmtDate(d: string): string {
+  return new Date(d).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" });
+}
+function greeting(): string {
+  const h = new Date().getUTCHours() - 3; // BRT offset
+  if (h < 12) return "Bom dia";
+  if (h < 18) return "Boa tarde";
+  return "Boa noite";
 }
 
-function formatTime(seconds: number, showMs: boolean = false): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  if (showMs) {
-    const ms = Math.floor((seconds % 1) * 100);
-    return `${mins}:${secs.toString().padStart(2, "0")}.${ms.toString().padStart(2, "0")}`;
-  }
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
+// ── Ring SVG ───────────────────────────────────────────────────────
+function Ring({ pct, size = 80, stroke = 8, color = "#FF4D00" }: { pct: number; size?: number; stroke?: number; color?: string }) {
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const filled = circ * Math.min(pct, 1);
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: "rotate(-90deg)" }}>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={stroke} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+        strokeDasharray={`${filled} ${circ}`} strokeLinecap="round" />
+    </svg>
+  );
 }
 
-async function getActivitiesData(token: string) {
+// ── Data fetchers ──────────────────────────────────────────────────
+async function getActivities(token: string) {
   try {
-    const after = Math.floor((Date.now() - 14 * 24 * 60 * 60 * 1000) / 1000);
-    const res = await fetch(`https://www.strava.com/api/v3/athlete/activities?per_page=30&after=${after}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
-    return null;
-  }
+    const after = Math.floor((Date.now() - 30 * 86400000) / 1000);
+    const r = await fetch(
+      `https://www.strava.com/api/v3/athlete/activities?per_page=30&after=${after}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    return r.ok ? r.json() : [];
+  } catch { return []; }
 }
-
-async function getAthleteProfile(token: string) {
+async function getAthlete(token: string) {
   try {
-    const res = await fetch("https://www.strava.com/api/v3/athlete", {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
-    return null;
-  }
+    const r = await fetch("https://www.strava.com/api/v3/athlete", { headers: { Authorization: `Bearer ${token}` } });
+    return r.ok ? r.json() : null;
+  } catch { return null; }
 }
 
+// ── Page ───────────────────────────────────────────────────────────
 export default async function Home() {
   const cookieStore = await cookies();
   const token = cookieStore.get("strava_token")?.value;
 
+  // ── Not logged in ──
   if (!token) {
     return (
-      <div className={styles.container} style={{ justifyContent: "center", textAlign: "center" }}>
-        <div className="animate-fade-in" style={{ marginBottom: "24px" }}>
-          <Image
-            src="/logo.png"
-            alt="Aura Run Logo"
-            width={120}
-            height={120}
-            style={{ borderRadius: "24px", boxShadow: "0 10px 30px rgba(252, 76, 2, 0.3)" }}
-          />
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: "32px 24px", textAlign: "center", background: "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(255,77,0,0.12) 0%, transparent 60%), #080810" }}>
+        <div style={{ marginBottom: "28px", animation: "fadeUp 0.6s ease both" }}>
+          <Image src="/logo.png" alt="Aura Run" width={100} height={100} style={{ borderRadius: "28px", boxShadow: "0 12px 40px rgba(255,77,0,0.35)" }} />
         </div>
-        <h1 className="text-gradient-primary" style={{ marginBottom: "16px", fontSize: "40px" }}>Aura Run</h1>
-        <p style={{ marginBottom: "40px", color: "var(--text-dim)" }}>Conecte seu Strava para que a Aura possa analisar seus treinos e criar planilhas inteligentes para você.</p>
-        <a 
-          href="/api/auth/strava/login" 
-          className="btn-primary" 
-          style={{ display: "inline-block", padding: "16px 32px", textDecoration: "none", borderRadius: "14px" }}
-        >
+        <h1 style={{ fontSize: "42px", fontWeight: "900", letterSpacing: "-1px", marginBottom: "8px" }}>
+          Aura <span style={{ color: "#FF4D00" }}>Run</span>
+        </h1>
+        <p style={{ fontSize: "16px", color: "rgba(255,255,255,0.45)", maxWidth: "280px", marginBottom: "40px", lineHeight: "1.6" }}>
+          Seu treinador de corrida com IA conectado ao Strava
+        </p>
+        <a href="/api/auth/strava/login" className="btn-primary" style={{ padding: "16px 36px", fontSize: "16px", borderRadius: "16px" }}>
           Conectar com Strava
         </a>
-        <div style={{ marginTop: '32px', fontSize: '11px', color: 'rgba(255,255,255,0.3)', letterSpacing: '2px', fontWeight: '600' }}>
-          BY XANDY GOMES
-        </div>
-        <a href="/api/auth/logout" style={{ marginTop: '20px', display: 'block', fontSize: '12px', color: 'var(--secondary)', textDecoration: 'none', opacity: 0.6 }}>
-          Limpar e Tentar Novamente
-        </a>
+        <p style={{ marginTop: "40px", fontSize: "11px", color: "rgba(255,255,255,0.15)", letterSpacing: "3px", fontWeight: "700", textTransform: "uppercase" }}>BY XANDY GOMES</p>
       </div>
     );
   }
 
-  const [activities, athlete] = await Promise.all([
-    getActivitiesData(token),
-    getAthleteProfile(token),
-  ]);
+  // ── Data ──
+  const [activities, athlete] = await Promise.all([getActivities(token), getAthlete(token)]);
 
   const userName = athlete?.firstname || "Atleta";
-  const userPhoto = athlete?.profile_medium || athlete?.profile || "";
+  const userPhoto = athlete?.profile_medium || "";
 
-  const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const weeklyDist = activities
-    ? activities
-        .filter((a: any) => new Date(a.start_date).getTime() > oneWeekAgo)
-        .reduce((acc: number, curr: any) => acc + curr.distance, 0) / 1000
+  const weekAgo = Date.now() - 7 * 86400000;
+  const weekActs = activities.filter((a: any) => new Date(a.start_date).getTime() > weekAgo);
+  const weekRuns = weekActs.filter((a: any) => a.type === "Run");
+  const weekDist = weekActs.reduce((s: number, a: any) => s + a.distance, 0) / 1000;
+  const weekTime = weekActs.reduce((s: number, a: any) => s + a.moving_time, 0);
+  const GOAL_KM = 40; // weekly distance goal
+  const goalPct = weekDist / GOAL_KM;
+
+  const avgPaceRun = weekRuns.length > 0
+    ? weekRuns.reduce((s: number, a: any) => s + a.moving_time / (a.distance / 1000), 0) / weekRuns.length
     : 0;
 
-  const lastWeekActivities = activities
-    ? activities.filter((a: any) => new Date(a.start_date).getTime() > oneWeekAgo)
-    : [];
+  // Day-of-week dots: Mon-Sun, did they run?
+  const dayDots = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(); d.setDate(d.getDate() - (6 - i)); d.setHours(0, 0, 0, 0);
+    const next = new Date(d); next.setDate(d.getDate() + 1);
+    const had = weekActs.some((a: any) => {
+      const t = new Date(a.start_date).getTime();
+      return t >= d.getTime() && t < next.getTime();
+    });
+    const labels = ["S", "T", "Q", "Q", "S", "S", "D"];
+    return { label: labels[d.getDay() === 0 ? 6 : d.getDay() - 1], had };
+  });
 
-  const runsCount = lastWeekActivities.filter((a: any) => a.type === "Run").length;
-  const walksCount = lastWeekActivities.filter((a: any) => a.type === "Walk").length;
-  const ridesCount = lastWeekActivities.filter((a: any) => a.type === "Ride").length;
+  const recentActs = activities.slice(0, 5);
 
-  let aiWorkout = "Analisando seus treinos para gerar a melhor recomendação...";
-  if (activities && activities.length > 0) {
-    aiWorkout = await generateTrainingSuggestion(activities);
+  let aiSuggestion = "";
+  if (activities.length > 0) {
+    aiSuggestion = await generateTrainingSuggestion(activities);
   }
+  // AI text: remove stars (bold) for the home card
+  const aiFull = aiSuggestion.replace(/\*\*/g, "");
 
   return (
-    <div className={styles.container}>
-      <header className={`${styles.header} animate-fade-in`}>
-        <div className={styles.profileInfo}>
-          <div className={styles.avatar}>
-            {userPhoto ? (
-              <Image src={userPhoto} alt={userName} width={48} height={48} style={{ borderRadius: "50%", objectFit: "cover", border: "2px solid #FC4C02" }} />
-            ) : (
-              <div style={{ width: "100%", height: "100%", background: "linear-gradient(45deg, #FC4C02, #FF9500)", borderRadius: "50%" }}></div>
-            )}
-          </div>
-          <div>
-            <p className={styles.greeting}>Bem-vindo de volta,</p>
-            <h2 className={styles.userName}>{userName}</h2>
-          </div>
-        </div>
-        <div className="glass" style={{ padding: "8px", borderRadius: "12px" }}>
-          <span style={{ fontSize: "20px" }}>🔔</span>
-        </div>
-      </header>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", paddingBottom: "100px" }}>
 
-      <section className={`${styles.statsGrid} animate-fade-in`} style={{ animationDelay: "0.1s" }}>
-        <div className={`${styles.statCard} glass-card`}>
-          <span className={styles.statLabel}>Distância (7 dias)</span>
-          <div className={styles.statValue}>{weeklyDist.toFixed(1)} <span className={styles.statUnit}>km</span></div>
-        </div>
-        <div className={`${styles.statCard} glass-card`}>
-          <span className={styles.statLabel}>Esta Semana</span>
-          <div style={{ display: "flex", gap: "8px", marginTop: "4px", flexWrap: "wrap" }}>
-            {runsCount > 0 && <span style={{ fontSize: "12px", color: "#FC4C02" }}>🏃 {runsCount}</span>}
-            {walksCount > 0 && <span style={{ fontSize: "12px", color: "#00F2FF" }}>🚶 {walksCount}</span>}
-            {ridesCount > 0 && <span style={{ fontSize: "12px", color: "#00D4AA" }}>🚴 {ridesCount}</span>}
-            {lastWeekActivities.length === 0 && <span style={{ fontSize: "12px", color: "var(--text-dim)" }}>Nenhuma atividade</span>}
-          </div>
-        </div>
-      </section>
+      {/* ── Hero ── */}
+      <div style={{ padding: "52px 20px 28px", background: "linear-gradient(180deg, rgba(255,77,0,0.08) 0%, transparent 100%)", position: "relative", overflow: "hidden" }}>
+        {/* Glow orb */}
+        <div style={{ position: "absolute", top: -60, right: -60, width: 200, height: 200, background: "radial-gradient(circle, rgba(255,77,0,0.15) 0%, transparent 70%)", pointerEvents: "none" }} />
 
-      <section className={`${styles.aiSection} animate-fade-in`} style={{ animationDelay: "0.2s" }}>
-        <div className={`${styles.aiCard} glass-card`}>
-          <div className={styles.aiTitle}><span>✨</span><span>Seu Treino Aura para Hoje</span></div>
-          <div style={{ margin: "16px 0", borderLeft: "2px solid var(--secondary)", paddingLeft: "12px" }}>
-            <div className={styles.aiSuggestion} style={{ fontSize: "14px", lineHeight: "1.6", whiteSpace: "pre-wrap" }}>{aiWorkout}</div>
-          </div>
-          <Link href="/workout" className="btn-ai" style={{ width: "100%", display: "block", textAlign: "center" }}>Iniciar Treino</Link>
-        </div>
-      </section>
-
-      <section className="animate-fade-in" style={{ animationDelay: "0.25s", marginBottom: "24px" }}>
-        <Link href="/plan" style={{ textDecoration: "none", display: "block" }}>
-          <div className="glass-card" style={{ background: "linear-gradient(135deg, rgba(0,242,255,0.1) 0%, rgba(0,114,255,0.1) 100%)", border: "1px solid rgba(0,242,255,0.3)", display: "flex", alignItems: "center", gap: "16px" }}>
-            <div style={{ fontSize: "40px" }}>🎯</div>
-            <div>
-              <h3 style={{ fontSize: "16px", fontWeight: "700", color: "white", marginBottom: "4px" }}>Planilha para Prova</h3>
-              <p style={{ fontSize: "13px", lineHeight: "1.4" }}>Treinar para uma corrida? A Aura monta sua planilha semana a semana baseada no seu histórico.</p>
+        {/* Top bar */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{ position: "relative", width: 48, height: 48 }}>
+              {userPhoto
+                ? <Image src={userPhoto} alt={userName} width={48} height={48} style={{ borderRadius: "50%", objectFit: "cover", border: "2px solid rgba(255,77,0,0.6)" }} />
+                : <div style={{ width: 48, height: 48, borderRadius: "50%", background: "linear-gradient(135deg,#FF4D00,#FF9240)" }} />
+              }
+              <div style={{ position: "absolute", bottom: 0, right: 0, width: 14, height: 14, background: "#00E5A0", border: "2px solid #080810", borderRadius: "50%" }} />
             </div>
-            <span style={{ fontSize: "20px", color: "var(--secondary)", marginLeft: "auto" }}>→</span>
+            <div>
+              <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)", fontWeight: "500" }}>{greeting()},</p>
+              <h2 style={{ fontSize: "18px", fontWeight: "800" }}>{userName} 👋</h2>
+            </div>
           </div>
-        </Link>
-      </section>
+          <Link href="/profile" style={{ textDecoration: "none" }}>
+            <div style={{ width: 40, height: 40, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/>
+              </svg>
+            </div>
+          </Link>
+        </div>
 
-      <section style={{ animationDelay: "0.3s" }}>
-        <div className={styles.sectionTitle}><span>Suas Atividades</span><Link href="#" className={styles.seeAll}>Ver tudo</Link></div>
-        <div className={styles.activityList}>
-          {activities && activities.length > 0 ? (
-            activities.map((act: any) => {
-              const activityInfo = getActivityInfo(act.type);
-              return (
-                <div key={act.id} className="glass-card" style={{ marginBottom: "12px", padding: "16px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      <span style={{ fontSize: "24px" }}>{activityInfo.icon}</span>
-                      <div>
-                        <h4 style={{ fontSize: "16px", fontWeight: "600" }}>{act.name}</h4>
-                        <p style={{ fontSize: "12px", color: activityInfo.color }}>{activityInfo.label} • {(act.distance / 1000).toFixed(2)} km</p>
+        {/* Weekly hero stat */}
+        <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+          {/* Progress ring */}
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <Ring pct={goalPct} size={88} stroke={7} color="#FF4D00" />
+            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ fontSize: "18px", fontWeight: "900", color: "#FF4D00", lineHeight: 1 }}>{weekDist.toFixed(1)}</span>
+              <span style={{ fontSize: "9px", color: "rgba(255,255,255,0.4)", fontWeight: "600", textTransform: "uppercase" }}>km</span>
+            </div>
+          </div>
+
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)", marginBottom: "4px", fontWeight: "500" }}>Esta semana</p>
+            <div style={{ fontSize: "13px", fontWeight: "700", marginBottom: "10px" }}>
+              <span style={{ color: "#FF4D00" }}>{weekDist.toFixed(1)}</span>
+              <span style={{ color: "rgba(255,255,255,0.3)" }}> / {GOAL_KM} km</span>
+            </div>
+            {/* Day dots */}
+            <div style={{ display: "flex", gap: "6px" }}>
+              {dayDots.map((d, i) => (
+                <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px" }}>
+                  <div style={{ width: 24, height: 24, borderRadius: "8px", background: d.had ? "linear-gradient(135deg,#FF4D00,#FF7340)" : "rgba(255,255,255,0.06)", border: d.had ? "none" : "1px solid rgba(255,255,255,0.08)", boxShadow: d.had ? "0 2px 8px rgba(255,77,0,0.35)" : "none" }} />
+                  <span style={{ fontSize: "9px", color: "rgba(255,255,255,0.3)", fontWeight: "600" }}>{d.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Micro stats */}
+        <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
+          {[
+            { label: "Atividades", value: weekActs.length },
+            { label: "Tempo", value: fmtMovingTime(weekTime) },
+            { label: "Pace médio", value: avgPaceRun > 0 ? `${fmtPace(1000, avgPaceRun)}/km` : "--" },
+          ].map(s => (
+            <div key={s.label} style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", padding: "10px 8px", textAlign: "center" }}>
+              <div style={{ fontSize: "15px", fontWeight: "800", color: "white", marginBottom: "2px" }}>{s.value}</div>
+              <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: "20px", maxWidth: "500px", margin: "0 auto", width: "100%" }}>
+
+        {/* ── Aura AI card ── */}
+        {aiFull && (
+          <div style={{ background: "linear-gradient(135deg, rgba(0,200,232,0.08) 0%, rgba(0,114,255,0.06) 100%)", border: "1px solid rgba(0,200,232,0.2)", borderRadius: "24px", padding: "20px", position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, background: "radial-gradient(circle, rgba(0,200,232,0.12) 0%, transparent 70%)", pointerEvents: "none" }} />
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
+              <div style={{ width: 36, height: 36, borderRadius: "11px", background: "linear-gradient(135deg,#00C8E8,#0072FF)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", boxShadow: "0 4px 12px rgba(0,114,255,0.3)" }}>🤖</div>
+              <div>
+                <div style={{ fontSize: "13px", fontWeight: "800", color: "white" }}>Treino de Hoje</div>
+                <div style={{ fontSize: "11px", color: "#00E5FF", fontWeight: "600" }}>Aura AI Coach</div>
+              </div>
+            </div>
+            <div style={{ maxHeight: "100px", overflowY: "auto", marginBottom: "16px", paddingRight: "4px" }} className="custom-scrollbar">
+              <p style={{ fontSize: "13px", lineHeight: "1.6", color: "rgba(255,255,255,0.7)", margin: 0 }}>{aiFull}</p>
+            </div>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <Link href="/workout" className="btn-primary" style={{ flex: 1, padding: "12px", fontSize: "14px", textAlign: "center", borderRadius: "14px" }}>
+                ▶ Iniciar Treino
+              </Link>
+              <Link href={`/coach?tip=${encodeURIComponent(aiFull)}`} style={{ padding: "12px 16px", background: "rgba(0,200,232,0.1)", border: "1px solid rgba(0,200,232,0.25)", borderRadius: "14px", color: "#00E5FF", fontSize: "13px", fontWeight: "700", textDecoration: "none", display: "flex", alignItems: "center", gap: "6px" }}>
+                Ver tudo →
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* ── Quick actions ── */}
+        <div>
+          <p style={{ fontSize: "11px", fontWeight: "700", color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "12px" }}>Ações Rápidas</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+            {[
+              { href: "/workout", icon: "🏃", label: "Treinar Agora", sub: "GPS ao vivo", color: "#FF4D00", bg: "rgba(255,77,0,0.1)", border: "rgba(255,77,0,0.25)" },
+              { href: "/plan", icon: "📋", label: "Planilha", sub: "Monte seu plano", color: "#00E5A0", bg: "rgba(0,229,160,0.08)", border: "rgba(0,229,160,0.2)" },
+              { href: "/races", icon: "🗓️", label: "Corridas", sub: "Calendário de provas", color: "#00E5FF", bg: "rgba(0,229,255,0.08)", border: "rgba(0,229,255,0.2)" },
+              { href: "/coach", icon: "🤖", label: "Aura AI", sub: "Pergunte algo", color: "#A78BFA", bg: "rgba(167,139,250,0.08)", border: "rgba(167,139,250,0.2)" },
+            ].map(a => (
+              <Link key={a.href} href={a.href} style={{ textDecoration: "none" }} className="action-card">
+                <div style={{ background: a.bg, border: `1px solid ${a.border}`, borderRadius: "18px", padding: "16px" }}>
+                  <div style={{ fontSize: "28px", marginBottom: "8px" }}>{a.icon}</div>
+                  <div style={{ fontSize: "14px", fontWeight: "700", color: "white", marginBottom: "2px" }}>{a.label}</div>
+                  <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)" }}>{a.sub}</div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Recent activities ── */}
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+            <p style={{ fontSize: "11px", fontWeight: "700", color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "1px" }}>Atividades Recentes</p>
+            <Link href="/stats" style={{ fontSize: "12px", color: "#FF4D00", fontWeight: "700", textDecoration: "none" }}>Ver tudo →</Link>
+          </div>
+
+          {recentActs.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "32px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "20px" }}>
+              <div style={{ fontSize: "40px", marginBottom: "12px" }}>🏃</div>
+              <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.4)" }}>Nenhuma atividade nos últimos 30 dias</p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {recentActs.map((act: any) => {
+                const color = actColor[act.type] || "#888";
+                const icon = actIcon[act.type] || "🏅";
+                return (
+                  <Link key={act.id} href={`/stats?id=${act.id}`} style={{ textDecoration: "none" }}>
+                    <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "18px", padding: "14px 16px", display: "flex", alignItems: "center", gap: "12px", transition: "background 0.15s" }}>
+                      <div style={{ width: 40, height: 40, borderRadius: "12px", background: `${color}18`, border: `1px solid ${color}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px", flexShrink: 0 }}>{icon}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: "600", fontSize: "14px", marginBottom: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{act.name}</div>
+                        <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)" }}>{fmtDate(act.start_date)} · {fmtMovingTime(act.moving_time)}</div>
+                      </div>
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div style={{ fontWeight: "800", fontSize: "16px", color }}>{(act.distance / 1000).toFixed(2)}<span style={{ fontSize: "10px", color: "rgba(255,255,255,0.35)", fontWeight: "500", marginLeft: "2px" }}>km</span></div>
+                        <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)", marginTop: "1px" }}>{fmtPace(act.distance, act.moving_time)}/km</div>
                       </div>
                     </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: "15px", fontWeight: "700" }}>{formatTime(act.moving_time, true)}</div>
-                      <div style={{ fontSize: "11px", color: "var(--text-dim)" }}>{new Date(act.start_date).toLocaleDateString("pt-BR")}</div>
-                    </div>
-                  </div>
-                  {act.map?.summary_polyline && (
-                    <div style={{ marginTop: "8px", padding: "8px", background: "rgba(0,0,0,0.2)", borderRadius: "8px", display: "flex", alignItems: "center", gap: "8px" }}>
-                      <span style={{ fontSize: "14px" }}>🗺️</span>
-                      <span style={{ fontSize: "12px", color: "var(--text-dim)" }}>Ruta disponível • Clique para ver no mapa</span>
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          ) : (<p style={{ textAlign: "center", color: "var(--text-dim)" }}>Nenhuma atividade encontrada.</p>)}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </div>
-      </section>
+      </div>
 
       <BottomNav />
     </div>

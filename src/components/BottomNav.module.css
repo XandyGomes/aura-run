@@ -1,43 +1,97 @@
-.navBar {
+.nav {
   position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: calc(100% - 40px);
-  max-width: 460px;
-  height: 70px;
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
+  bottom: 0;
+  left: 0;
+  right: 0;
   z-index: 100;
+  padding: 0 12px 12px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  pointer-events: none;
 }
 
-.navItem {
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  background: rgba(12, 12, 20, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 24px;
+  padding: 10px 8px;
+  pointer-events: all;
+  box-shadow: 0 -4px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04);
+}
+
+.item {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  color: var(--text-dim);
-  font-size: 10px;
-  font-weight: 500;
-  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 16px;
   text-decoration: none;
-  transition: color 0.2s ease;
+  color: rgba(255,255,255,0.35);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  transition: color 0.2s, background 0.2s;
+  position: relative;
+  min-width: 52px;
 }
 
-.navItemActive {
-  color: var(--primary);
+.item:active { background: rgba(255,255,255,0.06); }
+
+.icon { 
+  display: flex; 
+  align-items: center; 
+  justify-content: center;
+  transition: transform 0.2s;
 }
 
-.navItemActive .navIcon {
-  filter: drop-shadow(0 0 8px var(--primary-glow));
+.active {
+  color: #FF4D00;
 }
 
-.navIcon {
-  font-size: 22px;
-  transition: transform 0.2s ease;
+.active .icon {
+  transform: translateY(-1px);
 }
 
-.navItem:active .navIcon {
-  transform: scale(0.9);
+.label {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.dot {
+  position: absolute;
+  bottom: 2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #FF4D00;
+}
+
+/* Big center button */
+.big {
+  padding: 0;
+  min-width: 60px;
+}
+
+.bigBtn {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #FF4D00, #FF7340);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 0 24px rgba(255,77,0,0.5), 0 4px 12px rgba(0,0,0,0.3);
+  transform: translateY(-8px);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.big:active .bigBtn {
+  transform: translateY(-6px) scale(0.95);
+  box-shadow: 0 0 16px rgba(255,77,0,0.4);
 }

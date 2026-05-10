@@ -1,12 +1,17 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
-const STRAVA_CLIENT_ID = process.env.STRAVA_CLIENT_ID;
-const STRAVA_CLIENT_SECRET = process.env.STRAVA_CLIENT_SECRET;
-
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
+  const clientId = process.env.STRAVA_CLIENT_ID;
+  const clientSecret = process.env.STRAVA_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    console.error('[Strava Callback] Credenciais não configuradas nas variáveis de ambiente.');
+    return new NextResponse('Configuração do servidor incompleta.', { status: 500 });
+  }
+
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
   const errorParam = searchParams.get('error');
@@ -19,27 +24,24 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL('/', request.url));
   }
 
-  if (!STRAVA_CLIENT_ID || !STRAVA_CLIENT_SECRET) {
-    console.error('Missing Strava credentials');
-    return new NextResponse('Configuração incompleta', { status: 500 });
-  }
+  // Strava requer client_id como número inteiro e não precisa de redirect_uri no token exchange
+  const tokenBody = {
+    client_id: Number(clientId),
+    client_secret: clientSecret.trim(), // trim para remover qualquer whitespace invisível
+    code,
+    grant_type: 'authorization_code',
+  };
 
   try {
     const response = await fetch('https://www.strava.com/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_id: STRAVA_CLIENT_ID,
-        client_secret: STRAVA_CLIENT_SECRET,
-        code,
-        grant_type: 'authorization_code',
-      }),
+      body: JSON.stringify(tokenBody),
     });
 
     const data = await response.json();
-    
+
     if (data.errors || !data.access_token) {
-      console.error('Strava Exchange Error:', data);
       return new NextResponse(`Erro na troca de token: ${JSON.stringify(data)}`, { status: 400 });
     }
 
@@ -71,7 +73,7 @@ export async function GET(request: Request) {
 
     return NextResponse.redirect(new URL('/', request.url));
   } catch (error: any) {
-    console.error('Callback Catch Error:', error);
+    console.error('[Strava Callback] Erro:', error);
     return new NextResponse(`Erro Interno: ${error.message}`, { status: 500 });
   }
 }

@@ -1,144 +1,374 @@
+/* ── Layout geral ── */
 .container {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  padding: 40px 20px;
-  background: radial-gradient(circle at 50% 0%, rgba(0, 242, 255, 0.15) 0%, transparent 50%), var(--background);
-  align-items: center;
-  justify-content: space-between;
+  height: 100dvh;
+  background: #0a0a12;
+  overflow: hidden;
+  position: relative;
 }
 
-.header {
+/* ── Mapa ── */
+.mapWrapper {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.map {
   width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  height: 100%;
+  z-index: 0;
 }
 
-.closeBtn {
-  background: var(--surface);
-  border: 1px solid var(--surface-border);
-  color: white;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
+/* GPS badge */
+.gpsBadge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  background: rgba(10, 10, 18, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+.gpsOk {
+  color: #00e5a0;
+  border-color: rgba(0, 229, 160, 0.3);
+}
+
+.gpsError {
+  color: #ff4d4d;
+  border-color: rgba(255, 77, 77, 0.3);
+}
+
+/* Cronômetro overlay no mapa */
+.timerOverlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 16px 20px;
+  background: linear-gradient(to top, rgba(10, 10, 18, 1) 40%, transparent);
+  z-index: 10;
   display: flex;
-  align-items: center;
   justify-content: center;
-  cursor: pointer;
 }
 
-.workoutTitle {
-  text-align: center;
-}
-
-.workoutTitle h1 {
-  font-size: 20px;
-  color: var(--secondary);
-}
-
-.workoutTitle p {
-  font-size: 14px;
-}
-
-.timerContainer {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.time {
-  font-size: 80px;
+.timerMain {
+  font-size: 64px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   letter-spacing: -2px;
+  color: #ffffff;
+  text-shadow: 0 0 30px rgba(252, 76, 2, 0.5);
+  line-height: 1;
 }
 
-.currentStep {
-  font-size: 24px;
-  font-weight: 600;
-  color: white;
-  text-align: center;
+/* ── Mensagem da Aura ── */
+.auraMessage {
+  background: linear-gradient(135deg, rgba(252, 76, 2, 0.15), rgba(252, 76, 2, 0.05));
+  border: 1px solid rgba(252, 76, 2, 0.3);
+  border-radius: 12px;
+  padding: 10px 16px;
+  margin: 8px 16px 0;
+  animation: slideIn 0.4s ease;
 }
 
-.nextStep {
-  font-size: 14px;
-  color: var(--text-dim);
+.auraMessage span {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #fc4c02;
 }
 
-.metricsGrid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 24px;
-  width: 100%;
-  max-width: 300px;
+.auraMessage p {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Métricas ── */
+.metricsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 14px 20px;
+  background: #0f0f1e;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .metric {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
 }
 
 .metricValue {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #ffffff;
 }
 
 .metricLabel {
-  font-size: 12px;
+  font-size: 10px;
   text-transform: uppercase;
-  color: var(--text-dim);
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.35);
 }
 
+.metricDivider {
+  width: 1px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ── Splits bar ── */
+.splitsBar {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: #0f0f1e;
+}
+
+.splitsBar::-webkit-scrollbar { display: none; }
+
+.splitChip {
+  flex-shrink: 0;
+  background: rgba(252, 76, 2, 0.12);
+  border: 1px solid rgba(252, 76, 2, 0.25);
+  color: #fc4c02;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+/* ── Controles ── */
 .controls {
   display: flex;
-  gap: 20px;
-  align-items: center;
+  gap: 12px;
+  padding: 12px 20px 80px; /* 80px para a bottom nav */
+  background: #0f0f1e;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.playPauseBtn {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  background: var(--primary);
+.startBtn {
+  flex: 1;
+  height: 52px;
+  background: linear-gradient(135deg, #fc4c02, #e63600);
   border: none;
+  border-radius: 14px;
   color: white;
-  font-size: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 0 20px var(--primary-glow);
+  box-shadow: 0 0 24px rgba(252, 76, 2, 0.4);
+  transition: transform 0.15s, box-shadow 0.15s;
 }
 
-.stopBtn {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background: var(--surface);
-  border: 1px solid var(--surface-border);
-  color: var(--error);
-  font-size: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
+.startBtn:active {
+  transform: scale(0.97);
+  box-shadow: 0 0 12px rgba(252, 76, 2, 0.3);
 }
 
-.progressContainer {
+.secondaryBtn {
+  flex: 1;
+  height: 52px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.secondaryBtn:active { background: rgba(255, 255, 255, 0.1); }
+
+.finishBtn {
+  flex: 1;
+  height: 52px;
+  background: rgba(255, 77, 77, 0.1);
+  border: 1px solid rgba(255, 77, 77, 0.3);
+  border-radius: 14px;
+  color: #ff6b6b;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.finishBtn:active { background: rgba(255, 77, 77, 0.2); }
+
+/* ══════════════════════════════════════════
+   TELA DE RESUMO
+══════════════════════════════════════════ */
+.summaryScreen {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: radial-gradient(ellipse at top, rgba(252, 76, 2, 0.12) 0%, transparent 60%), #0a0a12;
+  padding: 48px 20px 32px;
+  gap: 24px;
+  overflow-y: auto;
+}
+
+.summaryHeader {
+  text-align: center;
+}
+
+.summaryHeader h1 {
+  font-size: 28px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.summaryHeader p {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 4px;
+}
+
+.summaryStats {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.summaryMainStat {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.summaryBig {
+  font-size: 80px;
+  font-weight: 900;
+  color: #fc4c02;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.summaryUnit {
+  font-size: 28px;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 600;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
   width: 100%;
-  height: 4px;
-  background: var(--surface);
-  border-radius: 2px;
-  overflow: hidden;
 }
 
-.progressBar {
-  height: 100%;
-  background: var(--secondary);
-  box-shadow: 0 0 10px var(--secondary-glow);
-  transition: width 0.3s ease;
+.summaryItem {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
+
+.summaryVal {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+
+.summaryLbl {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* Splits box */
+.splitsBox {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.splitsBox h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: 12px;
+}
+
+.splitsList { display: flex; flex-direction: column; gap: 8px; }
+
+.splitRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.splitKm {
+  width: 48px;
+  font-size: 13px;
+  color: #fc4c02;
+  font-weight: 700;
+}
+
+.splitTime {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+}
+
+.splitMs {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.35);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Summary actions */
+.summaryActions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.summaryBtn {
+  width: 100%;
+  height: 52px;
+  border-radius: 14px;
+  border: none;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s;
+  background: linear-gradient(135deg, #fc4c02, #e63600);
+  color: white;
+  box-shadow: 0 0 20px rgba(252, 76, 2, 0.3);
+}
+
+.summaryBtn:active { transform: scale(0.97); }
