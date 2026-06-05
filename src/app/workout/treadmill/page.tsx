@@ -174,9 +174,7 @@ export default function TreadmillPage() {
         elapsed_time: timeSec * 1000,
         calories: cals,
         start_date: new Date().toISOString(),
-        workout_type: 'treadmill',
-        source: imagePreview ? 'photo_scan' : 'manual',
-        gps_points: [],
+        gps_points: [{ is_treadmill: true, source: imagePreview ? 'photo_scan' : 'manual' }],
         splits: [],
       });
       if (error) throw error;

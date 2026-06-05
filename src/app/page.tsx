@@ -122,18 +122,23 @@ export default async function Home() {
   ]);
 
   // Map local workouts to Strava format
-  const mappedLocal = (localWorkouts || []).map((w: any) => ({
-    id: w.id,
-    name: w.name,
-    type: w.workout_type === 'treadmill' ? 'Treadmill' : 'Run',
-    sport_type: w.workout_type === 'treadmill' ? 'Treadmill' : 'Run',
-    start_date: w.start_date,
-    distance: w.distance * 1000, // Strava compat (meters)
-    moving_time: w.moving_time,  // já em segundos
-    elapsed_time: w.elapsed_time ? Math.floor(w.elapsed_time / 1000) : w.moving_time, // ms→s
-    total_elevation_gain: 0,
-    is_local: true,
-  }));
+  const mappedLocal = (localWorkouts || []).map((w: any) => {
+    const isTreadmill = w.workout_type === 'treadmill' ||
+      (w.gps_points && Array.isArray(w.gps_points) && w.gps_points.some((p: any) => p && p.is_treadmill === true)) ||
+      w.name?.toLowerCase().includes('esteira');
+    return {
+      id: `local_${w.id}`,
+      name: w.name,
+      type: isTreadmill ? 'Treadmill' : 'Run',
+      sport_type: isTreadmill ? 'Treadmill' : 'Run',
+      start_date: w.start_date,
+      distance: w.distance * 1000, // Strava compat (meters)
+      moving_time: w.moving_time,  // já em segundos
+      elapsed_time: w.elapsed_time ? Math.floor(w.elapsed_time / 1000) : w.moving_time, // ms→s
+      total_elevation_gain: 0,
+      is_local: true,
+    };
+  });
 
   // Merge & Sort
   const activities = [...mappedLocal, ...stravaActivities].sort(

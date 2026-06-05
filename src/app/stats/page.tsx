@@ -124,8 +124,8 @@ function ActivityModal({ act, onClose, onDeleteSuccess }: { act: Activity; onClo
     if (!confirm('Deseja realmente excluir este treino permanentemente?')) return;
     try {
       const rawId = typeof act.id === 'string' && act.id.startsWith('local_')
-        ? Number(act.id.replace('local_', ''))
-        : Number(act.id);
+        ? act.id.replace('local_', '')
+        : act.id;
       
       const { error } = await supabase
         .from('recorded_workouts')
