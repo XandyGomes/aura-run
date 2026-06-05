@@ -42,6 +42,55 @@ function estCalories(distKm: number, timeSec: number): number {
   return Math.round(distKm * 60); // ~60 kcal/km estimado
 }
 
+function compressImage(file: File, maxWidth = 1024, maxHeight = 1024, quality = 0.8): Promise<{ dataUrl: string; base64: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Não foi possível obter o contexto 2D do Canvas.'));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        const base64 = dataUrl.split(',')[1];
+        resolve({ dataUrl, base64 });
+      };
+      img.onerror = () => {
+        reject(new Error('Falha ao carregar a imagem para compressão.'));
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = () => {
+      reject(new Error('Falha ao ler o arquivo original.'));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 /* ── Types ── */
 type Mode = 'choose' | 'photo' | 'form' | 'saved';
 
@@ -66,49 +115,43 @@ export default function TreadmillPage() {
   });
 
   /* ── Photo capture ── */
-  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    const previewReader = new FileReader();
-    previewReader.onload = (ev) => setImagePreview(ev.target?.result as string);
-    previewReader.readAsDataURL(file);
 
     setScanning(true);
     setScanError('');
     setMode('photo');
 
-    const base64Reader = new FileReader();
-    base64Reader.onload = async (ev) => {
-      try {
-        const dataUrl = ev.target?.result as string;
-        const base64 = dataUrl.split(',')[1];
-        const res = await fetch('/api/ai/treadmill-scan', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBase64: base64, mimeType: file.type || 'image/jpeg' }),
-        });
-        const json = await res.json();
-        if (!res.ok || !json.success) throw new Error(json.error || 'Falha ao analisar');
+    try {
+      // Compress image to fit Vercel payload limits (max size 4.5MB)
+      const { dataUrl, base64 } = await compressImage(file);
+      setImagePreview(dataUrl);
 
-        const d = json.data;
-        setForm(prev => ({
-          ...prev,
-          distance: d.distance != null ? String(d.distance) : prev.distance,
-          timeDisplay: d.time != null ? secToDisplay(d.time) : prev.timeDisplay,
-          speed: d.speed != null ? String(d.speed) : prev.speed,
-          calories: d.calories != null ? String(Math.round(d.calories)) : prev.calories,
-          incline: d.incline != null ? String(d.incline) : prev.incline,
-        }));
-        setConfidence(d.confidence ?? null);
-      } catch (err: any) {
-        setScanError(err.message || 'Erro ao analisar imagem');
-      } finally {
-        setScanning(false);
-        setMode('form');
-      }
-    };
-    base64Reader.readAsDataURL(file);
+      const res = await fetch('/api/ai/treadmill-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, mimeType: 'image/jpeg' }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || 'Falha ao analisar');
+
+      const d = json.data;
+      setForm(prev => ({
+        ...prev,
+        distance: d.distance != null ? String(d.distance) : prev.distance,
+        timeDisplay: d.time != null ? secToDisplay(d.time) : prev.timeDisplay,
+        speed: d.speed != null ? String(d.speed) : prev.speed,
+        calories: d.calories != null ? String(Math.round(d.calories)) : prev.calories,
+        incline: d.incline != null ? String(d.incline) : prev.incline,
+      }));
+      setConfidence(d.confidence ?? null);
+    } catch (err: any) {
+      setScanError(err.message || 'Erro ao analisar imagem');
+    } finally {
+      setScanning(false);
+      setMode('form');
+    }
   };
 
   /* ── Save ── */
@@ -135,8 +178,6 @@ export default function TreadmillPage() {
         source: imagePreview ? 'photo_scan' : 'manual',
         gps_points: [],
         splits: [],
-        avg_speed: parseFloat(form.speed) || 0,
-        incline: parseFloat(form.incline) || 0,
       });
       if (error) throw error;
       setMode('saved');
