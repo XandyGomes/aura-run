@@ -18,7 +18,7 @@ function CoachContent() {
   const initialTip = searchParams.get('tip');
 
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'aura', content: 'Olá! 👋 Sou a **Aura**, sua treinadora de corrida com IA.\n\nTenho acesso ao seu histórico completo no Strava e posso te ajudar com:\n• Estratégias de treino personalizadas\n• Análise do seu desempenho\n• Prevenção de lesões\n• Nutrição e recuperação\n\nO que você gostaria de saber?', ts: new Date() },
+    { role: 'aura', content: 'Olá! 👋 Sou a **Aura**, sua treinadora de esportes com IA.\n\nTenho acesso ao seu histórico completo no Strava e posso te ajudar com:\n• Treinos de corrida e ciclismo (pedais)\n• Análise de performance e evolução\n• Prevenção de lesões\n• Nutrição e recuperação\n\nO que você gostaria de saber?', ts: new Date() },
   ]);
 
   useEffect(() => {

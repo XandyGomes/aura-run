@@ -32,72 +32,150 @@ async function fetchAllActivities(token: string): Promise<any[]> {
 function buildStravaContext(activities: any[]): string {
   if (!activities.length) return 'Usuário sem atividades registradas no Strava.';
 
-  const runs = activities.filter((a) => a.type === 'Run' || a.sport_type === 'Run');
+  const runs = activities.filter(
+    (a) => a.type === 'Run' || a.sport_type === 'Run' || a.sport_type === 'TrailRun'
+  );
+  const rides = activities.filter(
+    (a) =>
+      a.type === 'Ride' ||
+      a.sport_type === 'Ride' ||
+      a.sport_type === 'MountainBikeRide' ||
+      a.sport_type === 'GravelRide' ||
+      a.sport_type === 'EBikeRide'
+  );
 
-  if (runs.length === 0) return 'Usuário não possui corridas registradas no Strava.';
+  let context = '📊 RESUMO DAS ATIVIDADES NO STRAVA\n\n';
 
-  // ── Estatísticas gerais ───────────────────────────────────────────
-  const totalKm = runs.reduce((s, a) => s + (a.distance || 0), 0) / 1000;
-  const totalSec = runs.reduce((s, a) => s + (a.moving_time || 0), 0);
-  const totalElev = runs.reduce((s, a) => s + (a.total_elevation_gain || 0), 0);
-  const avgPaceSec = totalKm > 0 ? (totalSec / 60) / totalKm : 0;
+  // ── CORRIDAS (RUNS) ───────────────────────────────────────────────
+  if (runs.length > 0) {
+    const totalKm = runs.reduce((s, a) => s + (a.distance || 0), 0) / 1000;
+    const totalSec = runs.reduce((s, a) => s + (a.moving_time || 0), 0);
+    const totalElev = runs.reduce((s, a) => s + (a.total_elevation_gain || 0), 0);
+    const avgPaceSec = totalKm > 0 ? (totalSec / 60) / totalKm : 0;
+    const longestRun = Math.max(...runs.map((a) => a.distance || 0)) / 1000;
+    const fastestPaceRun = runs
+      .filter((a) => a.distance > 0)
+      .reduce((best, a) => {
+        const pace = (a.moving_time / 60) / (a.distance / 1000);
+        return pace < best.pace ? { pace, name: a.name, date: a.start_date } : best;
+      }, { pace: Infinity, name: '', date: '' });
 
-  const longestRun = Math.max(...runs.map((a) => a.distance || 0)) / 1000;
-  const fastestPaceRun = runs
-    .filter((a) => a.distance > 0)
-    .reduce((best, a) => {
-      const pace = (a.moving_time / 60) / (a.distance / 1000);
-      return pace < best.pace ? { pace, name: a.name, date: a.start_date } : best;
-    }, { pace: Infinity, name: '', date: '' });
+    context += `🏃 CORRIDAS:
+• Total de corridas: ${runs.length}
+• Distância total: ${totalKm.toFixed(1)}km
+• Tempo total: ${(totalSec / 3600).toFixed(1)}h
+• Ritmo médio geral: ${avgPaceSec.toFixed(1)}min/km
+• Corrida mais longa: ${longestRun.toFixed(2)}km
+• Melhor ritmo: ${fastestPaceRun.pace !== Infinity ? `${fastestPaceRun.pace.toFixed(1)}min/km (${fastestPaceRun.name}, ${new Date(fastestPaceRun.date).toLocaleDateString('pt-BR')})` : 'N/A'}\n\n`;
+  } else {
+    context += `🏃 CORRIDAS:\n• Nenhuma corrida registrada.\n\n`;
+  }
 
-  // ── Médias por mês (últimos 6 meses) ─────────────────────────────
-  const monthly: Record<string, { count: number; km: number; sec: number }> = {};
-  runs.forEach((a) => {
+  // ── PEDALADAS (RIDES) ─────────────────────────────────────────────
+  if (rides.length > 0) {
+    const totalKm = rides.reduce((s, a) => s + (a.distance || 0), 0) / 1000;
+    const totalSec = rides.reduce((s, a) => s + (a.moving_time || 0), 0);
+    const totalElev = rides.reduce((s, a) => s + (a.total_elevation_gain || 0), 0);
+    const avgSpeed = totalSec > 0 ? (totalKm / (totalSec / 3600)) : 0;
+    const longestRide = Math.max(...rides.map((a) => a.distance || 0)) / 1000;
+    const fastestSpeedRide = rides.reduce((best, a) => {
+      const speed = (a.average_speed || 0) * 3.6;
+      return speed > best.speed ? { speed, name: a.name, date: a.start_date } : best;
+    }, { speed: 0, name: '', date: '' });
+
+    context += `🚴 PEDALADAS / CICLISMO:
+• Total de pedaladas: ${rides.length}
+• Distância total: ${totalKm.toFixed(1)}km
+• Tempo total: ${(totalSec / 3600).toFixed(1)}h
+• Ganho de elevação total: ${totalElev.toFixed(0)}m
+• Velocidade média geral: ${avgSpeed.toFixed(1)}km/h
+• Pedalada mais longa: ${longestRide.toFixed(2)}km
+• Melhor velocidade média: ${fastestSpeedRide.speed > 0 ? `${fastestSpeedRide.speed.toFixed(1)}km/h (${fastestSpeedRide.name}, ${new Date(fastestSpeedRide.date).toLocaleDateString('pt-BR')})` : 'N/A'}\n\n`;
+  } else {
+    context += `🚴 PEDALADAS / CICLISMO:\n• Nenhuma pedalada registrada.\n\n`;
+  }
+
+  // ── OUTRAS ATIVIDADES ─────────────────────────────────────────────
+  const otherActs = activities.filter(
+    (a) =>
+      a.type !== 'Run' && a.sport_type !== 'Run' && a.sport_type !== 'TrailRun' &&
+      a.type !== 'Ride' && a.sport_type !== 'Ride' && a.sport_type !== 'MountainBikeRide' && a.sport_type !== 'GravelRide' && a.sport_type !== 'EBikeRide'
+  );
+  if (otherActs.length > 0) {
+    const totalKm = otherActs.reduce((s, a) => s + (a.distance || 0), 0) / 1000;
+    const totalSec = otherActs.reduce((s, a) => s + (a.moving_time || 0), 0);
+    context += `💪 OUTRAS ATIVIDADES (Caminhada, Natação, Funcional, etc.):
+• Total de outras atividades: ${otherActs.length}
+• Distância total: ${totalKm.toFixed(1)}km
+• Tempo total: ${(totalSec / 3600).toFixed(1)}h\n\n`;
+  }
+
+  // ── EVOLUÇÃO POR MÊS (últimos 6 meses) ──
+  const monthly: Record<string, { runCount: number; runKm: number; rideCount: number; rideKm: number }> = {};
+  activities.forEach((a) => {
+    const isRun = a.type === 'Run' || a.sport_type === 'Run' || a.sport_type === 'TrailRun';
+    const isRide = a.type === 'Ride' || a.sport_type === 'Ride' || a.sport_type === 'MountainBikeRide' || a.sport_type === 'GravelRide' || a.sport_type === 'EBikeRide';
+    if (!isRun && !isRide) return;
+
     const d = new Date(a.start_date);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    if (!monthly[key]) monthly[key] = { count: 0, km: 0, sec: 0 };
-    monthly[key].count++;
-    monthly[key].km += (a.distance || 0) / 1000;
-    monthly[key].sec += a.moving_time || 0;
+    if (!monthly[key]) monthly[key] = { runCount: 0, runKm: 0, rideCount: 0, rideKm: 0 };
+    
+    if (isRun) {
+      monthly[key].runCount++;
+      monthly[key].runKm += (a.distance || 0) / 1000;
+    } else if (isRide) {
+      monthly[key].rideCount++;
+      monthly[key].rideKm += (a.distance || 0) / 1000;
+    }
   });
 
   const monthlyLines = Object.entries(monthly)
     .sort(([a], [b]) => b.localeCompare(a))
     .slice(0, 6)
     .map(([month, s]) => {
-      const pace = s.km > 0 ? ((s.sec / 60) / s.km).toFixed(1) : 'N/A';
-      return `  ${month}: ${s.count} corridas | ${s.km.toFixed(1)}km | ritmo médio ${pace}min/km`;
+      const parts = [];
+      if (s.runCount > 0) parts.push(`🏃 ${s.runCount} corridas (${s.runKm.toFixed(1)}km)`);
+      if (s.rideCount > 0) parts.push(`🚴 ${s.rideCount} pedais (${s.rideKm.toFixed(1)}km)`);
+      return `  ${month}: ${parts.join(' | ') || 'Sem atividades'}`;
     })
     .join('\n');
 
-  // ── Últimas 30 corridas (detalhe) ─────────────────────────────────
-  const recentLines = runs.slice(0, 30).map((a) => {
+  if (monthlyLines) {
+    context += `═══ EVOLUÇÃO POR MÊS (últimos 6 meses) ═══\n${monthlyLines}\n\n`;
+  }
+
+  // ── ÚLTIMAS 30 ATIVIDADES (detalhe) ───────────────────────────────
+  const recentActs = activities.slice(0, 30);
+  const recentLines = recentActs.map((a) => {
+    const isRun = a.type === 'Run' || a.sport_type === 'Run' || a.sport_type === 'TrailRun';
+    const isRide = a.type === 'Ride' || a.sport_type === 'Ride' || a.sport_type === 'MountainBikeRide' || a.sport_type === 'GravelRide' || a.sport_type === 'EBikeRide';
+    
+    const icon = isRun ? '🏃' : isRide ? '🚴' : '🏅';
     const km = (a.distance / 1000).toFixed(2);
     const min = Math.floor(a.moving_time / 60);
-    const pace = a.distance > 0 ? ((a.moving_time / 60) / (a.distance / 1000)).toFixed(1) : 'N/A';
+    
+    let performance = '';
+    if (isRun) {
+      const pace = a.distance > 0 ? ((a.moving_time / 60) / (a.distance / 1000)).toFixed(1) : 'N/A';
+      performance = `${pace}min/km`;
+    } else if (isRide) {
+      const speed = a.moving_time > 0 ? ((a.distance / 1000) / (a.moving_time / 3600)).toFixed(1) : 'N/A';
+      performance = `${speed}km/h`;
+    } else {
+      performance = `${min}min`;
+    }
+
     const hr = a.average_heartrate ? ` | FC ${Math.round(a.average_heartrate)}bpm` : '';
     const elev = a.total_elevation_gain ? ` | +${Math.round(a.total_elevation_gain)}m` : '';
     const date = new Date(a.start_date).toLocaleDateString('pt-BR');
-    return `  [${date}] ${a.name} — ${km}km em ${min}min | ${pace}min/km${hr}${elev}`;
+    
+    return `  ${icon} [${date}] ${a.name} — ${km}km em ${min}min | ${performance}${hr}${elev}`;
   }).join('\n');
 
-  return `📊 HISTÓRICO COMPLETO NO STRAVA (${runs.length} corridas no total)
+  context += `═══ ÚLTIMAS 30 ATIVIDADES (detalhe) ═══\n${recentLines}`;
 
-═══ ESTATÍSTICAS GERAIS ═══
-• Total de corridas: ${runs.length}
-• Distância total acumulada: ${totalKm.toFixed(1)}km
-• Tempo total: ${(totalSec / 3600).toFixed(1)}h
-• Ganho de elevação total: ${totalElev.toFixed(0)}m
-• Ritmo médio geral: ${avgPaceSec.toFixed(1)}min/km
-• Corrida mais longa: ${longestRun.toFixed(2)}km
-• Melhor ritmo registrado: ${fastestPaceRun.pace.toFixed(1)}min/km (${fastestPaceRun.name}, ${new Date(fastestPaceRun.date).toLocaleDateString('pt-BR')})
-• Período de dados: ${new Date(runs[runs.length - 1].start_date).toLocaleDateString('pt-BR')} até hoje
-
-═══ EVOLUÇÃO POR MÊS (últimos 6 meses) ═══
-${monthlyLines}
-
-═══ ÚLTIMAS 30 CORRIDAS (detalhe) ═══
-${recentLines}`;
+  return context;
 }
 
 export async function POST(request: Request) {
@@ -124,17 +202,17 @@ export async function POST(request: Request) {
 
     const systemMessage = {
       role: 'system' as const,
-      content: `Você é a Aura, uma treinadora de corrida de elite com IA. Hoje é ${hoje}.
+      content: `Você é a Aura, uma treinadora de esportes de elite com IA, especialista tanto em corrida quanto em ciclismo (pedais) e condicionamento físico. Hoje é ${hoje}.
 
-Você tem acesso COMPLETO ao histórico de corridas do atleta no Strava. Use esses dados para responder qualquer pergunta sobre performance, evolução, recordes, volume de treino, etc.
+Você tem acesso COMPLETO ao histórico de atividades do atleta no Strava (corridas, pedaladas, caminhadas, etc.). Use esses dados para responder qualquer pergunta sobre performance, evolução, recordes, volume de treino, dicas de ritmo ou velocidade, etc.
 
 ${stravaContext}
 
 INSTRUÇÕES:
 - Responda SEMPRE em português do Brasil
 - Seja técnica, motivadora e baseada nos dados reais do atleta
-- Quando responder sobre estatísticas, cite os números exatos dos dados acima
-- Se o atleta perguntar sobre uma corrida específica, busque nos dados
+- Quando responder sobre estatísticas, cite os números exatos e unidades apropriadas (ex: min/km para corrida, km/h para pedaladas/ciclismo)
+- Se o atleta perguntar sobre uma atividade específica (como um pedal ou corrida), busque nos dados
 - Se não encontrar a informação nos dados, diga que não há esse registro no Strava`,
     };
 
