@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { callAI } from '@/lib/ai';
+import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +27,35 @@ async function fetchAllActivities(token: string): Promise<any[]> {
   }
 
   return all;
+}
+
+// Busca treinos gravados diretamente no aplicativo via Supabase
+async function fetchLocalWorkouts(athleteId: number): Promise<any[]> {
+  try {
+    const { data, error } = await supabase
+      .from('recorded_workouts')
+      .select('*')
+      .eq('athlete_id', athleteId)
+      .order('start_date', { ascending: false });
+
+    if (error) throw error;
+    return (data || []).map((w: any) => ({
+      id: w.id,
+      name: w.name,
+      type: 'Run',
+      sport_type: 'Run',
+      distance: w.distance * 1000, // metros
+      moving_time: w.moving_time,
+      elapsed_time: Math.floor(w.elapsed_time / 1000),
+      total_elevation_gain: 0,
+      start_date: w.start_date,
+      average_speed: w.moving_time > 0 ? (w.distance * 1000) / w.moving_time : 0,
+      is_local: true,
+    }));
+  } catch (err) {
+    console.error('[Chat] Erro ao buscar treinos do Supabase para a IA:', err);
+    return [];
+  }
 }
 
 // Monta um contexto completo e rico para a IA
@@ -183,16 +213,23 @@ export async function POST(request: Request) {
     const { messages } = await request.json();
     const cookieStore = await cookies();
     const token = cookieStore.get('strava_token')?.value;
+    const athleteId = cookieStore.get('strava_athlete_id')?.value;
 
-    // Busca TODAS as atividades do Strava
-    let stravaContext = 'O usuário ainda não conectou o Strava.';
-    if (token) {
+    // Busca atividades do Strava e do Supabase
+    let stravaContext = 'O usuário ainda não possui treinos cadastrados.';
+    if (token || athleteId) {
       try {
-        const activities = await fetchAllActivities(token);
-        stravaContext = buildStravaContext(activities);
+        const stravaActivities = token ? await fetchAllActivities(token) : [];
+        const localActivities = athleteId ? await fetchLocalWorkouts(Number(athleteId)) : [];
+        
+        const combined = [...localActivities, ...stravaActivities].sort(
+          (a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
+        );
+        
+        stravaContext = buildStravaContext(combined);
       } catch (e) {
         console.error('[Chat] Erro ao buscar atividades:', e);
-        stravaContext = 'Não foi possível carregar as atividades do Strava neste momento.';
+        stravaContext = 'Não foi possível carregar o histórico de atividades neste momento.';
       }
     }
 
@@ -204,7 +241,7 @@ export async function POST(request: Request) {
       role: 'system' as const,
       content: `Você é a Aura, uma treinadora de esportes de elite com IA, especialista tanto em corrida quanto em ciclismo (pedais) e condicionamento físico. Hoje é ${hoje}.
 
-Você tem acesso COMPLETO ao histórico de atividades do atleta no Strava (corridas, pedaladas, caminhadas, etc.). Use esses dados para responder qualquer pergunta sobre performance, evolução, recordes, volume de treino, dicas de ritmo ou velocidade, etc.
+Você tem acesso COMPLETO ao histórico de atividades do atleta (corridas, pedaladas, etc., obtidos via Strava ou gravados diretamente pelo aplicativo com GPS). Use esses dados para responder qualquer pergunta sobre performance, evolução, recordes, volume de treino, dicas de ritmo ou velocidade, etc.
 
 ${stravaContext}
 
@@ -212,8 +249,8 @@ INSTRUÇÕES:
 - Responda SEMPRE em português do Brasil
 - Seja técnica, motivadora e baseada nos dados reais do atleta
 - Quando responder sobre estatísticas, cite os números exatos e unidades apropriadas (ex: min/km para corrida, km/h para pedaladas/ciclismo)
-- Se o atleta perguntar sobre uma atividade específica (como um pedal ou corrida), busque nos dados
-- Se não encontrar a informação nos dados, diga que não há esse registro no Strava`,
+- Se o atleta perguntar sobre uma atividade específica, busque nos dados
+- Se não encontrar a informação nos dados, diga que não há esse registro no Strava ou gravado no aplicativo`,
     };
 
     // Converte mensagens para formato padrão

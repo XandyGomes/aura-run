@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import styles from './page.module.css';
 import { useRouter } from 'next/navigation';
 import BottomNav from '@/components/BottomNav';
+import { supabase } from '@/lib/supabase';
 
 // ── Fórmula de Haversine para distância entre dois pontos GPS ──
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -42,6 +43,25 @@ function formatKm(km: number): string {
 
 type WorkoutState = 'idle' | 'running' | 'paused' | 'finished';
 
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+}
+
+function getWorkoutName() {
+  const d = new Date();
+  const days = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+  const day = days[d.getDay()];
+  const hour = d.getHours();
+  let period = 'de Manhã';
+  if (hour >= 12 && hour < 18) period = 'da Tarde';
+  else if (hour >= 18 || hour < 5) period = 'da Noite';
+  return `Corrida de ${day} ${period}`;
+}
+
 interface GpsPoint { lat: number; lon: number; ts: number; }
 
 // Mensagens motivacionais da Aura por marco
@@ -67,6 +87,8 @@ export default function WorkoutPage() {
   const [auraMsg, setAuraMsg] = useState('');
   const [gpsStatus, setGpsStatus] = useState<'waiting' | 'ok' | 'error'>('waiting');
   const [calories, setCalories] = useState(0);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'success' | 'error' | null>(null);
 
   // Refs para não re-render
   const startTimeRef = useRef(0);
@@ -280,10 +302,79 @@ export default function WorkoutPage() {
     setWorkoutState('running');
   };
 
+  const saveWorkout = async (dist: number, timeElapsed: number, cal: number) => {
+    const idStr = getCookie('strava_athlete_id');
+    if (!idStr) {
+      console.warn('Atleta não autenticado via Strava. Treino não enviado ao banco.');
+      return;
+    }
+
+    const athleteId = Number(idStr);
+    const name = getWorkoutName();
+
+    setIsSaving(true);
+    setSaveStatus(null);
+    try {
+      const { error } = await supabase
+        .from('recorded_workouts')
+        .insert({
+          athlete_id: athleteId,
+          name,
+          distance: dist,
+          moving_time: Math.floor(timeElapsed / 1000), // segundos
+          elapsed_time: timeElapsed,
+          calories: cal,
+          start_date: new Date().toISOString(),
+          gps_points: gpsPointsRef.current,
+          splits: splits
+        });
+
+      if (error) throw error;
+      setSaveStatus('success');
+      showAura('💾 Treino salvo com sucesso no banco de dados!');
+    } catch (err) {
+      console.error('Erro ao salvar treino:', err);
+      setSaveStatus('error');
+      showAura('⚠️ Erro ao salvar online. Armazenando localmente.');
+      
+      // Fallback local
+      try {
+        const local = localStorage.getItem('aura_local_workouts');
+        const list = local ? JSON.parse(local) : [];
+        list.push({
+          athlete_id: athleteId,
+          name,
+          distance: dist,
+          moving_time: Math.floor(timeElapsed / 1000),
+          elapsed_time: timeElapsed,
+          calories: cal,
+          start_date: new Date().toISOString(),
+          gps_points: gpsPointsRef.current,
+          splits: splits
+        });
+        localStorage.setItem('aura_local_workouts', JSON.stringify(list));
+      } catch (localErr) {
+        console.error('Erro ao salvar no local storage:', localErr);
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleFinish = () => {
     stopGps();
     if (timerRef.current) clearInterval(timerRef.current);
     setWorkoutState('finished');
+
+    const timeElapsed = Date.now() - startTimeRef.current + pausedElapsedRef.current;
+    const finalDistance = distanceRef.current;
+    const finalCalories = Math.floor((timeElapsed / 1000 / 60) * 8.5);
+
+    if (finalDistance > 0.01) {
+      saveWorkout(finalDistance, timeElapsed, finalCalories);
+    } else {
+      showAura('ℹ️ Treino muito curto para ser salvo.');
+    }
   };
 
   // ── Tela de resumo ──
@@ -333,6 +424,22 @@ export default function WorkoutPage() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {isSaving && (
+          <div style={{ margin: '16px 0 0', padding: '12px', background: 'rgba(255,176,32,0.1)', border: '1px solid rgba(255,176,32,0.25)', borderRadius: '16px', fontSize: '13px', textAlign: 'center', color: '#FFB020' }}>
+            💾 Salvando treino no Supabase...
+          </div>
+        )}
+        {!isSaving && saveStatus === 'success' && (
+          <div style={{ margin: '16px 0 0', padding: '12px', background: 'rgba(0,229,160,0.1)', border: '1px solid rgba(0,229,160,0.25)', borderRadius: '16px', fontSize: '13px', textAlign: 'center', color: '#00E5A0' }}>
+            ✅ Treino salvo online com sucesso!
+          </div>
+        )}
+        {!isSaving && saveStatus === 'error' && (
+          <div style={{ margin: '16px 0 0', padding: '12px', background: 'rgba(255,77,0,0.1)', border: '1px solid rgba(255,77,0,0.25)', borderRadius: '16px', fontSize: '13px', textAlign: 'center', color: '#FF4D00' }}>
+            ⚠️ Salvo localmente (conecte à internet para sincronizar).
           </div>
         )}
 

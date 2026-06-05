@@ -4,6 +4,7 @@ import Link from "next/link";
 import BottomNav from "@/components/BottomNav";
 import KitReminder from "@/components/KitReminder";
 import AuraAICard from "@/components/AuraAICard";
+import { supabase } from "@/lib/supabase";
 
 // ── Helpers ────────────────────────────────────────────────────────
 const actColor: Record<string, string> = {
@@ -65,11 +66,27 @@ async function getAthlete(token: string) {
     return r.ok ? r.json() : null;
   } catch { return null; }
 }
+async function getLocalWorkouts(athleteId: number) {
+  try {
+    const { data, error } = await supabase
+      .from('recorded_workouts')
+      .select('*')
+      .eq('athlete_id', athleteId)
+      .order('start_date', { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('Erro ao buscar treinos do Supabase na Home:', err);
+    return [];
+  }
+}
 
 // ── Page ───────────────────────────────────────────────────────────
 export default async function Home() {
   const cookieStore = await cookies();
   const token = cookieStore.get("strava_token")?.value;
+  const athleteId = cookieStore.get("strava_athlete_id")?.value;
 
   // ── Not logged in ──
   if (!token) {
@@ -93,7 +110,30 @@ export default async function Home() {
   }
 
   // ── Data ──
-  const [activities, athlete] = await Promise.all([getActivities(token), getAthlete(token)]);
+  const [stravaActivities, athlete, localWorkouts] = await Promise.all([
+    getActivities(token),
+    getAthlete(token),
+    athleteId ? getLocalWorkouts(Number(athleteId)) : []
+  ]);
+
+  // Map local workouts to Strava format
+  const mappedLocal = (localWorkouts || []).map((w: any) => ({
+    id: w.id,
+    name: w.name,
+    type: "Run",
+    sport_type: "Run",
+    start_date: w.start_date,
+    distance: w.distance * 1000, // Strava compat (meters)
+    moving_time: w.moving_time,
+    elapsed_time: Math.floor(w.elapsed_time / 1000), // seconds
+    total_elevation_gain: 0,
+    is_local: true,
+  }));
+
+  // Merge & Sort
+  const activities = [...mappedLocal, ...stravaActivities].sort(
+    (a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
+  );
 
   const userName = athlete?.firstname || "Atleta";
   const userPhoto = athlete?.profile_medium || "";
