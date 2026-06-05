@@ -11,13 +11,19 @@ interface Race {
   status: string;
 }
 
+interface Reminder {
+  id: string;
+  name: string;
+  type: 'kit' | 'race';
+}
+
 const STORAGE_KEY = 'aura_races_v1';
 
 export default function KitReminder() {
-  const [reminders, setReminders] = useState<Race[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
 
   useEffect(() => {
-    const checkKits = () => {
+    const checkReminders = () => {
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (!saved) return;
@@ -25,28 +31,41 @@ export default function KitReminder() {
         const races: Race[] = JSON.parse(saved);
         const today = new Date().toISOString().split('T')[0];
         
-        const kitsToday = races.filter(r => r.kitDate === today && r.status === 'upcoming');
-        setReminders(kitsToday);
+        const activeReminders: Reminder[] = [];
 
-        // Optional: Browser Notification
-        if (kitsToday.length > 0 && Notification.permission === 'granted') {
-          kitsToday.forEach(r => {
-            new Notification('🎁 Retirada de Kit!', {
-              body: `Hoje é o dia de retirar o kit para a corrida: ${r.name}`,
+        races.forEach(r => {
+          if (r.status !== 'upcoming') return;
+          if (r.kitDate === today) {
+            activeReminders.push({ id: `${r.id}-kit`, name: r.name, type: 'kit' });
+          }
+          if (r.date === today) {
+            activeReminders.push({ id: `${r.id}-race`, name: r.name, type: 'race' });
+          }
+        });
+
+        setReminders(activeReminders);
+
+        // Browser Notification
+        if (activeReminders.length > 0 && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+          activeReminders.forEach(rem => {
+            const title = rem.type === 'kit' ? '🎁 Retirada de Kit!' : '🏁 É hoje! Dia de Corrida!';
+            const body = rem.type === 'kit' 
+              ? `Hoje é o dia de retirar o kit para a corrida: ${rem.name}`
+              : `Hoje é o dia da corrida: ${rem.name}. Boa prova e boa sorte! 🏃‍♂️🚀`;
+            new Notification(title, {
+              body,
               icon: '/logo.png'
             });
           });
-        } else if (kitsToday.length > 0 && Notification.permission === 'default') {
-          Notification.requestPermission();
         }
       } catch (e) {
-        console.error('Error checking kits', e);
+        console.error('Error checking reminders', e);
       }
     };
 
-    checkKits();
+    checkReminders();
     // Check every hour if the page stays open
-    const interval = setInterval(checkKits, 3600000);
+    const interval = setInterval(checkReminders, 3600000);
     return () => clearInterval(interval);
   }, []);
 
@@ -57,14 +76,19 @@ export default function KitReminder() {
       {reminders.map(r => (
         <Link key={r.id} href="/races" style={{ textDecoration: 'none' }}>
           <div style={{ 
-            background: 'linear-gradient(135deg, #FF4D00, #FF7340)', 
+            background: r.type === 'race' 
+              ? 'linear-gradient(135deg, #00E5A0, #00B37E)' 
+              : 'linear-gradient(135deg, #FF4D00, #FF7340)', 
             borderRadius: '20px', 
             padding: '16px', 
             display: 'flex', 
             alignItems: 'center', 
             gap: '14px',
-            boxShadow: '0 8px 24px rgba(255,77,0,0.3)',
-            animation: 'pulse-scale 2s infinite ease-in-out'
+            boxShadow: r.type === 'race' 
+              ? '0 8px 24px rgba(0,229,160,0.25)' 
+              : '0 8px 24px rgba(255,77,0,0.3)',
+            animation: 'pulse-scale 2s infinite ease-in-out',
+            marginBottom: '8px'
           }}>
             <div style={{ 
               width: 44, 
@@ -77,11 +101,13 @@ export default function KitReminder() {
               fontSize: '24px',
               flexShrink: 0
             }}>
-              🎁
+              {r.type === 'race' ? '🏁' : '🎁'}
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: '11px', fontWeight: '800', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px' }}>Atenção Atleta</div>
-              <div style={{ fontSize: '15px', fontWeight: '900', color: 'white', lineHeight: '1.2' }}>HOJE: Retirada de Kit!</div>
+              <div style={{ fontSize: '15px', fontWeight: '900', color: 'white', lineHeight: '1.2' }}>
+                {r.type === 'race' ? 'HOJE: Dia de Corrida! 🏃‍♂️' : 'HOJE: Retirada de Kit!'}
+              </div>
               <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.9)', marginTop: '2px' }}>{r.name}</div>
             </div>
             <div style={{ fontSize: '20px', color: 'white', opacity: 0.8 }}>→</div>

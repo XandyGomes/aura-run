@@ -47,12 +47,48 @@ export default function RacesPage() {
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming');
   const [isCustom, setIsCustom] = useState(false);
 
+  const [notificationSupport, setNotificationSupport] = useState(false);
+  const [permission, setPermission] = useState<string>('default');
+  const [isIOS, setIsIOS] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) setRaces(JSON.parse(saved));
     } catch {}
+
+    if (typeof window !== 'undefined') {
+      const hasNotification = 'Notification' in window;
+      setNotificationSupport(hasNotification);
+      if (hasNotification) {
+        setPermission(Notification.permission);
+      }
+      
+      const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+      setIsIOS(iOS);
+      
+      const standalone = window.matchMedia('(display-mode: standalone)').matches;
+      setIsStandalone(standalone);
+    }
   }, []);
+
+  const requestNotificationPermission = () => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      Notification.requestPermission().then(perm => {
+        setPermission(perm);
+      });
+    }
+  };
+
+  const sendTestNotification = () => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      new Notification('🏃 Aura Run', {
+        body: 'Parabéns! Suas notificações estão ativas e funcionando no seu celular. 🚀',
+        icon: '/logo.png'
+      });
+    }
+  };
 
   const save = (updated: Race[]) => {
     setRaces(updated);
@@ -125,6 +161,58 @@ export default function RacesPage() {
       </div>
 
       <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '500px', margin: '0 auto', width: '100%' }}>
+
+        {/* Banner de Notificações */}
+        {isIOS && !isStandalone ? (
+          <div style={{ background: 'rgba(255,176,32,0.06)', border: '1px solid rgba(255,176,32,0.2)', borderRadius: '20px', padding: '16px', color: 'white', fontSize: '13px', lineHeight: '1.5' }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '8px' }}>
+              <span style={{ fontSize: '18px' }}>📲</span>
+              <span style={{ fontWeight: '800', color: '#FFB020' }}>Instale o App para ver Alertas</span>
+            </div>
+            <p style={{ color: 'rgba(255,255,255,0.7)', margin: 0 }}>
+              No iPhone, as notificações de corrida e kit só funcionam se você adicionar o Aura Run à Tela de Início.
+            </p>
+            <div style={{ marginTop: '10px', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', background: 'rgba(255,255,255,0.04)', padding: '8px 12px', borderRadius: '10px' }}>
+              <span>Toque em Compartilhar 📤 e escolha <strong>"Adicionar à Tela de Início"</strong></span>
+            </div>
+          </div>
+        ) : notificationSupport && permission === 'default' ? (
+          <div style={{ background: 'rgba(0,229,255,0.06)', border: '1px solid rgba(0,229,255,0.2)', borderRadius: '20px', padding: '16px', color: 'white', fontSize: '13px', lineHeight: '1.5' }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '8px' }}>
+              <span style={{ fontSize: '18px' }}>🔔</span>
+              <span style={{ fontWeight: '800', color: '#00E5FF' }}>Ativar Lembretes no Celular</span>
+            </div>
+            <p style={{ color: 'rgba(255,255,255,0.7)', marginBottom: '12px' }}>
+              Deseja receber avisos no seu celular no dia das corridas e na data de retirada do kit?
+            </p>
+            <button onClick={requestNotificationPermission} style={{ width: '100%', padding: '11px', borderRadius: '12px', background: 'linear-gradient(135deg, #00E5FF, #0072FF)', border: 'none', color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 12px rgba(0,114,255,0.25)' }}>
+              Permitir Notificações
+            </button>
+          </div>
+        ) : notificationSupport && permission === 'denied' ? (
+          <div style={{ background: 'rgba(255,77,77,0.06)', border: '1px solid rgba(255,77,77,0.2)', borderRadius: '20px', padding: '16px', color: 'white', fontSize: '13px', lineHeight: '1.5' }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '8px' }}>
+              <span style={{ fontSize: '18px' }}>⚠️</span>
+              <span style={{ fontWeight: '800', color: '#FF6B6B' }}>Notificações Bloqueadas</span>
+            </div>
+            <p style={{ color: 'rgba(255,255,255,0.7)', margin: 0 }}>
+              As notificações estão bloqueadas no seu navegador. Para receber alertas, ative as permissões nas configurações do seu celular ou navegador.
+            </p>
+          </div>
+        ) : notificationSupport && permission === 'granted' ? (
+          <div style={{ background: 'rgba(0,229,160,0.06)', border: '1px solid rgba(0,229,160,0.2)', borderRadius: '20px', padding: '16px', color: 'white', fontSize: '13px', lineHeight: '1.5' }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '8px' }}>
+              <span style={{ fontSize: '18px' }}>✅</span>
+              <span style={{ fontWeight: '800', color: '#00E5A0' }}>Notificações Ativas!</span>
+            </div>
+            <p style={{ color: 'rgba(255,255,255,0.7)', marginBottom: '12px' }}>
+              Você receberá lembretes das provas e da retirada de kits. Certifique-se de manter o app aberto ou em segundo plano.
+            </p>
+            <button onClick={sendTestNotification} style={{ width: '100%', padding: '9px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontWeight: '700', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit' }}>
+              Testar Notificação no Celular
+            </button>
+          </div>
+        ) : null}
 
         {/* Next race hero */}
         {nextRace && (
