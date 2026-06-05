@@ -78,11 +78,34 @@ export default function RacesPage() {
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming');
   const [isCustom, setIsCustom] = useState(false);
 
-  const [notificationSupport, setNotificationSupport] = useState(false);
-  const [permission, setPermission] = useState<string>('default');
-  const [isIOS, setIsIOS] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
-  const [athleteId, setAthleteId] = useState<number | null>(null);
+  const [notificationSupport] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return 'Notification' in window;
+    }
+    return false;
+  });
+  const [permission, setPermission] = useState<string>(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      return Notification.permission;
+    }
+    return 'default';
+  });
+  const [isIOS] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    }
+    return false;
+  });
+  const [isStandalone] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return window.matchMedia('(display-mode: standalone)').matches;
+    }
+    return false;
+  });
+  const [athleteId] = useState<number | null>(() => {
+    const idStr = getCookie('strava_athlete_id');
+    return idStr ? Number(idStr) : null;
+  });
 
   const loadRaces = async (id: number) => {
     try {
@@ -134,29 +157,12 @@ export default function RacesPage() {
   };
 
   useEffect(() => {
-    const idStr = getCookie('strava_athlete_id');
-    if (idStr) {
-      const id = Number(idStr);
-      setAthleteId(id);
-      migrateLocalRaces(id).then(() => {
-        loadRaces(id);
+    if (athleteId) {
+      migrateLocalRaces(athleteId).then(() => {
+        loadRaces(athleteId);
       });
     }
-
-    if (typeof window !== 'undefined') {
-      const hasNotification = 'Notification' in window;
-      setNotificationSupport(hasNotification);
-      if (hasNotification) {
-        setPermission(Notification.permission);
-      }
-      
-      const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-      setIsIOS(iOS);
-      
-      const standalone = window.matchMedia('(display-mode: standalone)').matches;
-      setIsStandalone(standalone);
-    }
-  }, []);
+  }, [athleteId]);
 
   // Registra automaticamente a inscrição se a permissão já foi concedida anteriormente
   useEffect(() => {
@@ -389,7 +395,7 @@ export default function RacesPage() {
               No iPhone, as notificações de corrida e kit só funcionam se você adicionar o Aura Run à Tela de Início.
             </p>
             <div style={{ marginTop: '10px', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', background: 'rgba(255,255,255,0.04)', padding: '8px 12px', borderRadius: '10px' }}>
-              <span>Toque em Compartilhar 📤 e escolha <strong>"Adicionar à Tela de Início"</strong></span>
+              <span>Toque em Compartilhar 📤 e escolha <strong>&quot;Adicionar à Tela de Início&quot;</strong></span>
             </div>
           </div>
         ) : notificationSupport && permission === 'default' ? (

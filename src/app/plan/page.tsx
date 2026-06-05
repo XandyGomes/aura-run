@@ -69,13 +69,13 @@ export default function PlanPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* Distance */}
           <div>
-            <label style={{ fontSize: '13px', color: 'var(--text-dim)', display: 'block', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Distância da Prova</label>
+            <label style={{ fontSize: '13px', color: 'var(--text-2)', display: 'block', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Distância da Prova</label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
               {distances.map(d => (
                 <button key={d.value} onClick={() => setDistance(d.value)} style={{
                   padding: '12px', borderRadius: '14px', fontSize: '13px', fontWeight: '600', cursor: 'pointer',
-                  background: distance === d.value ? 'var(--primary)' : 'var(--surface)',
-                  border: distance === d.value ? '1px solid var(--primary)' : '1px solid var(--surface-border)',
+                  background: distance === d.value ? 'var(--primary)' : 'var(--bg-card)',
+                  border: distance === d.value ? '1px solid var(--primary)' : '1px solid var(--border)',
                   color: 'white', transition: 'all 0.2s ease',
                   boxShadow: distance === d.value ? '0 4px 15px var(--primary-glow)' : 'none',
                 }}>
@@ -87,21 +87,21 @@ export default function PlanPage() {
 
           {/* Race Date */}
           <div>
-            <label style={{ fontSize: '13px', color: 'var(--text-dim)', display: 'block', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Data da Prova</label>
+            <label style={{ fontSize: '13px', color: 'var(--text-2)', display: 'block', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Data da Prova</label>
             <input type="date" value={raceDate} min={minDateStr} onChange={e => setRaceDate(e.target.value)}
-              style={{ width: '100%', padding: '14px 16px', borderRadius: '14px', background: 'var(--surface)', border: '1px solid var(--surface-border)', color: 'white', fontSize: '15px', colorScheme: 'dark' }}
+              style={{ width: '100%', padding: '14px 16px', borderRadius: '14px', background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'white', fontSize: '15px', colorScheme: 'dark' }}
             />
           </div>
 
           {/* Level */}
           <div>
-            <label style={{ fontSize: '13px', color: 'var(--text-dim)', display: 'block', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Seu Nível</label>
+            <label style={{ fontSize: '13px', color: 'var(--text-2)', display: 'block', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Seu Nível</label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {levels.map(l => (
                 <button key={l.value} onClick={() => setLevel(l.value)} style={{
                   padding: '12px 16px', borderRadius: '14px', fontSize: '14px', cursor: 'pointer', textAlign: 'left',
-                  background: level === l.value ? 'rgba(252, 76, 2, 0.15)' : 'var(--surface)',
-                  border: level === l.value ? '1px solid var(--primary)' : '1px solid var(--surface-border)',
+                  background: level === l.value ? 'rgba(252, 76, 2, 0.15)' : 'var(--bg-card)',
+                  border: level === l.value ? '1px solid var(--primary)' : '1px solid var(--border)',
                   color: 'white', transition: 'all 0.2s ease',
                 }}>
                   {l.label}
@@ -112,7 +112,7 @@ export default function PlanPage() {
 
           {/* Weekly KM */}
           <div>
-            <label style={{ fontSize: '13px', color: 'var(--text-dim)', display: 'block', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+            <label style={{ fontSize: '13px', color: 'var(--text-2)', display: 'block', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>
               Volume Semanal Atual: <strong style={{ color: 'white' }}>{weeklyKm} km</strong>
             </label>
             <input type="range" min="5" max="100" step="5" value={weeklyKm} onChange={e => setWeeklyKm(e.target.value)}
@@ -125,9 +125,9 @@ export default function PlanPage() {
 
           {/* Goal Time (Optional) */}
           <div>
-            <label style={{ fontSize: '13px', color: 'var(--text-dim)', display: 'block', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Tempo Alvo (Opcional)</label>
+            <label style={{ fontSize: '13px', color: 'var(--text-2)', display: 'block', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Tempo Alvo (Opcional)</label>
             <input type="text" value={goalTime} onChange={e => setGoalTime(e.target.value)} placeholder="Ex: 50:00, 1h45, sub-2h..."
-              style={{ width: '100%', padding: '14px 16px', borderRadius: '14px', background: 'var(--surface)', border: '1px solid var(--surface-border)', color: 'white', fontSize: '15px' }}
+              style={{ width: '100%', padding: '14px 16px', borderRadius: '14px', background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'white', fontSize: '15px', fontFamily: 'inherit' }}
             />
           </div>
 
@@ -146,8 +146,8 @@ export default function PlanPage() {
       ) : (
         <div>
           <div className="glass-card" style={{ marginBottom: '16px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '14px', color: 'var(--secondary)', fontWeight: '700' }}>✨ Planilha {distance} gerada!</span>
-            <button onClick={() => setPlan('')} style={{ background: 'none', border: '1px solid var(--surface-border)', color: 'var(--text-dim)', padding: '6px 12px', borderRadius: '10px', cursor: 'pointer', fontSize: '13px' }}>
+            <span style={{ fontSize: '14px', color: 'var(--success)', fontWeight: '700' }}>✨ Planilha {distance} gerada!</span>
+            <button onClick={() => setPlan('')} style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-2)', padding: '6px 12px', borderRadius: '10px', cursor: 'pointer', fontSize: '13px', fontFamily: 'inherit' }}>
               Nova Planilha
             </button>
           </div>

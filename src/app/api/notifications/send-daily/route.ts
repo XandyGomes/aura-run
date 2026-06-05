@@ -89,7 +89,6 @@ export async function GET(request: Request) {
 
     for (const race of races) {
       const isRaceDay = race.date === today;
-      const isKitDay = race.kit_date === today;
       
       const title = isRaceDay ? '🏁 Dia de Corrida! Boa sorte!' : '🎁 Retirada de Kit!';
       const body = isRaceDay

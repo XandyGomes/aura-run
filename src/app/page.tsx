@@ -9,10 +9,10 @@ import { supabase } from "@/lib/supabase";
 // ── Helpers ────────────────────────────────────────────────────────
 const actColor: Record<string, string> = {
   Run: "#FF4D00", Walk: "#00E5FF", Ride: "#00E5A0",
-  Swim: "#4A90E2", Hike: "#A78BFA", Workout: "#FFB020",
+  Swim: "#4A90E2", Hike: "#A78BFA", Workout: "#FFB020", Treadmill: "#FF6B9D",
 };
 const actIcon: Record<string, string> = {
-  Run: "🏃", Walk: "🚶", Ride: "🚴", Swim: "🏊", Hike: "🥾", Workout: "💪",
+  Run: "🏃", Walk: "🚶", Ride: "🚴", Swim: "🏊", Hike: "🥾", Workout: "💪", Treadmill: "🏃",
 };
 
 function fmtPace(dist: number, time: number): string {
@@ -82,6 +82,10 @@ async function getLocalWorkouts(athleteId: number) {
   }
 }
 
+async function getNowTime(): Promise<number> {
+  return Date.now();
+}
+
 // ── Page ───────────────────────────────────────────────────────────
 export default async function Home() {
   const cookieStore = await cookies();
@@ -110,6 +114,7 @@ export default async function Home() {
   }
 
   // ── Data ──
+  const nowMs = await getNowTime();
   const [stravaActivities, athlete, localWorkouts] = await Promise.all([
     getActivities(token),
     getAthlete(token),
@@ -120,12 +125,12 @@ export default async function Home() {
   const mappedLocal = (localWorkouts || []).map((w: any) => ({
     id: w.id,
     name: w.name,
-    type: "Run",
-    sport_type: "Run",
+    type: w.workout_type === 'treadmill' ? 'Treadmill' : 'Run',
+    sport_type: w.workout_type === 'treadmill' ? 'Treadmill' : 'Run',
     start_date: w.start_date,
     distance: w.distance * 1000, // Strava compat (meters)
-    moving_time: w.moving_time,
-    elapsed_time: Math.floor(w.elapsed_time / 1000), // seconds
+    moving_time: w.moving_time,  // já em segundos
+    elapsed_time: w.elapsed_time ? Math.floor(w.elapsed_time / 1000) : w.moving_time, // ms→s
     total_elevation_gain: 0,
     is_local: true,
   }));
@@ -138,7 +143,7 @@ export default async function Home() {
   const userName = athlete?.firstname || "Atleta";
   const userPhoto = athlete?.profile_medium || "";
 
-  const weekAgo = Date.now() - 7 * 86400000;
+  const weekAgo = nowMs - 7 * 86400000;
   const weekActs = activities.filter((a: any) => new Date(a.start_date).getTime() > weekAgo);
   const weekRuns = weekActs.filter((a: any) => a.type === "Run");
   const weekDist = weekActs.reduce((s: number, a: any) => s + a.distance, 0) / 1000;
@@ -152,7 +157,7 @@ export default async function Home() {
 
   // Day-of-week dots: Mon-Sun, did they run?
   const dayDots = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(); d.setDate(d.getDate() - (6 - i)); d.setHours(0, 0, 0, 0);
+    const d = new Date(nowMs); d.setDate(d.getDate() - (6 - i)); d.setHours(0, 0, 0, 0);
     const next = new Date(d); next.setDate(d.getDate() + 1);
     const had = weekActs.some((a: any) => {
       const t = new Date(a.start_date).getTime();

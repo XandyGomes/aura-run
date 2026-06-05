@@ -47,7 +47,7 @@ const callGemini = async (messages: Message[], maxTokens: number): Promise<strin
   }
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -57,7 +57,7 @@ const callGemini = async (messages: Message[], maxTokens: number): Promise<strin
 
   if (!response.ok) {
     const err = await response.text();
-    // Fallback para gemini-2.0-flash se 2.5 não disponível
+    // Fallback para gemini-3.5-flash se 2.5 não disponível
     if (response.status === 404 || response.status === 400) {
       return callGeminiFlash(messages, maxTokens);
     }
@@ -77,7 +77,7 @@ const callGemini = async (messages: Message[], maxTokens: number): Promise<strin
   return text;
 };
 
-/* Fallback para gemini-2.0-flash */
+/* Fallback para gemini-3.5-flash */
 const callGeminiFlash = async (messages: Message[], maxTokens: number): Promise<string> => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY não configurado');
@@ -101,7 +101,7 @@ const callGeminiFlash = async (messages: Message[], maxTokens: number): Promise<
   if (systemMsg) body.systemInstruction = { parts: [{ text: systemMsg.content }] };
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
     { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
   );
 

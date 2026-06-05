@@ -93,7 +93,9 @@ export default function WorkoutPage() {
   // Refs para não re-render
   const startTimeRef = useRef(0);
   const pausedElapsedRef = useRef(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Ref para o estado atual do treino — evita stale closure no GPS watcher
+  const workoutStateRef = useRef<WorkoutState>('idle');
+  const rafRef = useRef<number | null>(null);
   const watchIdRef = useRef<number | null>(null);
   const gpsPointsRef = useRef<GpsPoint[]>([]);
   const distanceRef = useRef(0);
@@ -135,13 +137,16 @@ export default function WorkoutPage() {
     mapRef.current = map;
   }
 
-  // ── Timer (10ms interval → centésimos visíveis) ──
+  // ── Timer via requestAnimationFrame (melhor performance em mobile) ──
   useEffect(() => {
+    // Mantém a ref sincronizada com o estado
+    workoutStateRef.current = workoutState;
+
     if (workoutState === 'running') {
-      timerRef.current = setInterval(() => {
+      const tick = () => {
         const ms = Date.now() - startTimeRef.current + pausedElapsedRef.current;
         setElapsed(ms);
-        setCalories(Math.floor((ms / 1000 / 60) * 8.5)); // ~8.5 kcal/min estimado
+        setCalories(Math.floor((ms / 1000 / 60) * 8.5));
 
         // Milestones de tempo
         const mins = ms / 60000;
@@ -157,11 +162,14 @@ export default function WorkoutPage() {
           firedMilestonesRef.current.add('min40');
           showAura(AURA_MESSAGES.min40);
         }
-      }, 10);
+
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      rafRef.current = requestAnimationFrame(tick);
     } else {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
     }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, [workoutState, showAura]);
 
   // ── GPS watcher ──
@@ -179,8 +187,8 @@ export default function WorkoutPage() {
         const now = Date.now();
         const newPt: GpsPoint = { lat, lon, ts: now };
 
-        // Record points and calculate distance only if running
-        if (workoutState === 'running') {
+        // Usa a ref para evitar stale closure — sempre reflete o estado atual
+        if (workoutStateRef.current === 'running') {
           const pts = gpsPointsRef.current;
           if (pts.length > 0) {
             const prev = pts[pts.length - 1];
@@ -241,7 +249,9 @@ export default function WorkoutPage() {
       () => setGpsStatus('error'),
       { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
     );
-  }, [showAura, workoutState]);
+  // showAura é estavel (useCallback sem deps dinâmicas)
+  // workoutState foi removido pois usamos workoutStateRef para evitar re-registro do watcher
+  }, [showAura]);
 
   const stopGps = () => {
     if (watchIdRef.current !== null) {
@@ -266,9 +276,12 @@ export default function WorkoutPage() {
     document.body.appendChild(script);
 
     // Warm up GPS on mount
-    startGps();
+    const warmUpTimer = setTimeout(() => {
+      startGps();
+    }, 0);
 
     return () => {
+      clearTimeout(warmUpTimer);
       document.head.removeChild(css);
       document.body.removeChild(script);
       stopGps();
@@ -289,17 +302,20 @@ export default function WorkoutPage() {
     setCurrentPace(0);
     setCalories(0);
     setWorkoutState('running');
+    workoutStateRef.current = 'running';
     showAura(AURA_MESSAGES.start);
   };
 
   const handlePause = () => {
     pausedElapsedRef.current += Date.now() - startTimeRef.current;
     setWorkoutState('paused');
+    workoutStateRef.current = 'paused';
   };
 
   const handleResume = () => {
     startTimeRef.current = Date.now();
     setWorkoutState('running');
+    workoutStateRef.current = 'running';
   };
 
   const saveWorkout = async (dist: number, timeElapsed: number, cal: number) => {
@@ -362,11 +378,18 @@ export default function WorkoutPage() {
   };
 
   const handleFinish = () => {
+    // Captura o estado ANTES de finalizar para calcular corretamente o tempo
+    const wasRunning = workoutStateRef.current === 'running';
     stopGps();
-    if (timerRef.current) clearInterval(timerRef.current);
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    workoutStateRef.current = 'finished';
     setWorkoutState('finished');
 
-    const timeElapsed = Date.now() - startTimeRef.current + pausedElapsedRef.current;
+    // Se estava rodando, soma o tempo desde o último startTime; se estava pausado, usa só o acumulado
+    const nowMs = Date.now();
+    const timeElapsed = wasRunning
+      ? pausedElapsedRef.current + (nowMs - startTimeRef.current)
+      : pausedElapsedRef.current;
     const finalDistance = distanceRef.current;
     const finalCalories = Math.floor((timeElapsed / 1000 / 60) * 8.5);
 
@@ -519,19 +542,17 @@ export default function WorkoutPage() {
       {/* Controles */}
       <div className={styles.controls}>
         {isIdle && (
-          <>
-            <div className={styles.controlsRow}>
-              <button className={styles.startBtn} onClick={handleStart}>
-                ▶ Iniciar Treino GPS
-              </button>
-            </div>
+          <div className={styles.controlsRow}>
+            <button className={styles.startBtn} onClick={handleStart}>
+              ▶ Iniciar GPS
+            </button>
             <button
               className={styles.treadmillBtn}
               onClick={() => router.push('/workout/treadmill')}
             >
-              🏃 Corrida na Esteira
+              🏃 Esteira
             </button>
-          </>
+          </div>
         )}
 
         {isRunning && (

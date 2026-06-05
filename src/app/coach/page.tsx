@@ -21,8 +21,11 @@ function CoachContent() {
     { role: 'aura', content: 'Olá! 👋 Sou a **Aura**, sua treinadora de esportes com IA.\n\nTenho acesso ao seu histórico completo no Strava e posso te ajudar com:\n• Treinos de corrida e ciclismo (pedais)\n• Análise de performance e evolução\n• Prevenção de lesões\n• Nutrição e recuperação\n\nO que você gostaria de saber?', ts: new Date() },
   ]);
 
+  const initialTipAddedRef = useRef(false);
+
   useEffect(() => {
-    if (initialTip && messages.length === 1) {
+    if (initialTip && !initialTipAddedRef.current) {
+      initialTipAddedRef.current = true;
       setMessages(prev => [...prev, { role: 'aura', content: `Aqui está o detalhe do seu treino sugerido:\n\n${initialTip}`, ts: new Date() }]);
     }
   }, [initialTip]);

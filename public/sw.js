@@ -14,7 +14,7 @@ self.addEventListener('push', function (event) {
       event.waitUntil(
         self.registration.showNotification(data.title || 'Aura Run', options)
       );
-    } catch (e) {
+    } catch {
       const text = event.data.text();
       event.waitUntil(
         self.registration.showNotification('Aura Run', {

@@ -59,9 +59,9 @@ Se a distância estiver em milhas, converta para km (1 milha = 1.609 km).`;
 
     let response;
     try {
-      response = await tryModel('gemini-2.5-flash-preview-05-20');
+      response = await tryModel('gemini-2.5-flash');
     } catch {
-      response = await tryModel('gemini-2.0-flash');
+      response = await tryModel('gemini-3.5-flash');
     }
 
     const data = await response.json();

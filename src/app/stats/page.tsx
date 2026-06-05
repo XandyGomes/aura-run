@@ -2,17 +2,18 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import BottomNav from '@/components/BottomNav';
-import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 import { useSearchParams } from 'next/navigation';
 
 // ── Types ──────────────────────────────────────────────────────────
 interface Activity {
-  id: number; name: string; type: string; sport_type: string;
+  id: number | string; name: string; type: string; sport_type: string;
   distance: number; moving_time: number; elapsed_time: number;
   total_elevation_gain: number; start_date: string;
   average_heartrate?: number; max_heartrate?: number;
   average_speed: number; max_speed: number; suffer_score?: number;
   map?: { summary_polyline?: string };
+  is_local?: boolean;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -30,10 +31,10 @@ const fmtTime = (sec: number) => {
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
 const actColor: Record<string, string> = {
   Run: '#FF4D00', Walk: '#00E5FF', Ride: '#00E5A0', Swim: '#4A90E2',
-  Hike: '#A78BFA', Workout: '#FFB020',
+  Hike: '#A78BFA', Workout: '#FFB020', Treadmill: '#FF6B9D',
 };
 const actIcon: Record<string, string> = {
-  Run: '🏃', Walk: '🚶', Ride: '🚴', Swim: '🏊', Hike: '🥾', Workout: '💪',
+  Run: '🏃', Walk: '🚶', Ride: '🚴', Swim: '🏊', Hike: '🥾', Workout: '💪', Treadmill: '🏃',
 };
 
 // ── Animated Number ────────────────────────────────────────────────
@@ -109,7 +110,7 @@ function BarChart({ data, selectedIdx, onSelect }: {
 }
 
 // ── Activity Modal ─────────────────────────────────────────────────
-function ActivityModal({ act, onClose }: { act: Activity; onClose: () => void }) {
+function ActivityModal({ act, onClose, onDeleteSuccess }: { act: Activity; onClose: () => void; onDeleteSuccess: (id: string | number) => void }) {
   const color = actColor[act.type] || '#888';
   const icon = actIcon[act.type] || '🏅';
   const distKm = act.distance / 1000;
@@ -118,6 +119,27 @@ function ActivityModal({ act, onClose }: { act: Activity; onClose: () => void })
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = ''; };
   }, []);
+
+  const handleDelete = async () => {
+    if (!confirm('Deseja realmente excluir este treino permanentemente?')) return;
+    try {
+      const rawId = typeof act.id === 'string' && act.id.startsWith('local_')
+        ? Number(act.id.replace('local_', ''))
+        : Number(act.id);
+      
+      const { error } = await supabase
+        .from('recorded_workouts')
+        .delete()
+        .eq('id', rawId);
+
+      if (error) throw error;
+      alert('Treino excluído com sucesso!');
+      onDeleteSuccess(act.id);
+    } catch (err: any) {
+      console.error('Erro ao excluir treino:', err);
+      alert('Erro ao excluir treino: ' + err.message);
+    }
+  };
 
   return (
     <div onClick={onClose} style={{
@@ -176,7 +198,12 @@ function ActivityModal({ act, onClose }: { act: Activity; onClose: () => void })
           ))}
         </div>
 
-        <div style={{ padding: '0 20px' }}>
+        <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {act.is_local && (
+            <button onClick={handleDelete} style={{ width: '100%', padding: '14px', borderRadius: '16px', background: 'rgba(255, 77, 77, 0.1)', border: '1px solid rgba(255, 77, 77, 0.3)', color: '#ff6b6b', fontSize: '15px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              🗑️ Excluir Treino
+            </button>
+          )}
           <button onClick={onClose} style={{ width: '100%', padding: '14px', borderRadius: '16px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '15px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit' }}>
             Fechar
           </button>
@@ -196,6 +223,11 @@ function StatsContent() {
   const [selected, setSelected] = useState<Activity | null>(null);
   const [barIdx, setBarIdx] = useState(-1);
   const [activeFilter, setActiveFilter] = useState<string>('Todos');
+
+  const handleDeleteSuccess = (id: string | number) => {
+    setActivities(prev => prev.filter(a => a.id !== id));
+    setSelected(null);
+  };
 
   useEffect(() => {
     fetch('/api/stats/activities')
@@ -370,7 +402,7 @@ function StatsContent() {
         })}
       </div>
 
-      {selected && <ActivityModal act={selected} onClose={() => setSelected(null)} />}
+      {selected && <ActivityModal act={selected} onClose={() => setSelected(null)} onDeleteSuccess={handleDeleteSuccess} />}
       <BottomNav />
 
       <style>{`

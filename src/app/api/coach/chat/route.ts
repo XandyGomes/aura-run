@@ -96,6 +96,7 @@ function buildStravaContext(activities: any[]): string {
 • Tempo total: ${(totalSec / 3600).toFixed(1)}h
 • Ritmo médio geral: ${avgPaceSec.toFixed(1)}min/km
 • Corrida mais longa: ${longestRun.toFixed(2)}km
+• Ganho de elevação acumulado: ${totalElev.toFixed(0)}m
 • Melhor ritmo: ${fastestPaceRun.pace !== Infinity ? `${fastestPaceRun.pace.toFixed(1)}min/km (${fastestPaceRun.name}, ${new Date(fastestPaceRun.date).toLocaleDateString('pt-BR')})` : 'N/A'}\n\n`;
   } else {
     context += `🏃 CORRIDAS:\n• Nenhuma corrida registrada.\n\n`;

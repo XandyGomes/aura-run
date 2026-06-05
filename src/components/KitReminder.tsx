@@ -4,13 +4,6 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 
-interface Race {
-  id: string;
-  name: string;
-  date: string;
-  kitDate?: string;
-  status: string;
-}
 
 interface Reminder {
   id: string;
