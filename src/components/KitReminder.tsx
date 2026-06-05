@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 
 interface Race {
   id: string;
@@ -17,25 +18,39 @@ interface Reminder {
   type: 'kit' | 'race';
 }
 
-const STORAGE_KEY = 'aura_races_v1';
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+}
 
 export default function KitReminder() {
   const [reminders, setReminders] = useState<Reminder[]>([]);
 
   useEffect(() => {
-    const checkReminders = () => {
+    const checkReminders = async () => {
       try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (!saved) return;
-        
-        const races: Race[] = JSON.parse(saved);
+        const idStr = getCookie('strava_athlete_id');
+        if (!idStr) return;
+        const athleteId = Number(idStr);
+
         const today = new Date().toISOString().split('T')[0];
+        
+        const { data: races, error } = await supabase
+          .from('races')
+          .select('*')
+          .eq('athlete_id', athleteId)
+          .eq('status', 'upcoming');
+
+        if (error) throw error;
+        if (!races) return;
         
         const activeReminders: Reminder[] = [];
 
         races.forEach(r => {
-          if (r.status !== 'upcoming') return;
-          if (r.kitDate === today) {
+          if (r.kit_date === today) {
             activeReminders.push({ id: `${r.id}-kit`, name: r.name, type: 'kit' });
           }
           if (r.date === today) {

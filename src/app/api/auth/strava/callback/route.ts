@@ -70,6 +70,13 @@ export async function GET(request: Request) {
       path: '/',
       sameSite: 'strict',
     });
+    cookieStore.set('strava_athlete_id', data.athlete.id.toString(), {
+      path: '/',
+      sameSite: 'strict',
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 60 * 60 * 24 * 30,
+    });
 
     return NextResponse.redirect(new URL('/', request.url));
   } catch (error: any) {

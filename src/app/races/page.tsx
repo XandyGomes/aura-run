@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import BottomNav from '@/components/BottomNav';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 
 interface Race {
   id: string;
@@ -17,7 +18,6 @@ interface Race {
 }
 
 const DISTANCES = ['5km', '10km', '15km', '21km (Meia)', '42km (Maratona)', 'Trail', 'Outro'];
-const STORAGE_KEY = 'aura_races_v1';
 
 function daysUntil(dateStr: string): number {
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -39,6 +39,37 @@ function CountdownBadge({ days }: { days: number }) {
   return <span style={{ fontSize: '11px', fontWeight: '600', color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.05)', padding: '3px 10px', borderRadius: '100px' }}>{days} dias</span>;
 }
 
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+}
+
+const mapRace = (row: any): Race => ({
+  id: row.id,
+  name: row.name,
+  date: row.date,
+  distance: row.distance,
+  city: row.city || '',
+  goalTime: row.goal_time || '',
+  notes: row.notes || '',
+  status: row.status,
+  kitDate: row.kit_date || '',
+});
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 export default function RacesPage() {
   const [races, setRaces] = useState<Race[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -51,12 +82,66 @@ export default function RacesPage() {
   const [permission, setPermission] = useState<string>('default');
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  const [athleteId, setAthleteId] = useState<number | null>(null);
+
+  const loadRaces = async (id: number) => {
+    try {
+      const { data, error } = await supabase
+        .from('races')
+        .select('*')
+        .eq('athlete_id', id)
+        .order('date', { ascending: true });
+
+      if (error) throw error;
+      setRaces((data || []).map(mapRace));
+    } catch (err) {
+      console.error('Erro ao carregar corridas:', err);
+    }
+  };
+
+  const migrateLocalRaces = async (id: number) => {
+    try {
+      const STORAGE_KEY = 'aura_races_v1';
+      const localData = localStorage.getItem(STORAGE_KEY);
+      if (!localData) return;
+
+      const localRaces = JSON.parse(localData);
+      if (Array.isArray(localRaces) && localRaces.length > 0) {
+        console.log('Migrando corridas locais para o Supabase...');
+        const racesToInsert = localRaces.map((r: any) => ({
+          athlete_id: id,
+          name: r.name,
+          date: r.date,
+          distance: r.distance,
+          city: r.city || null,
+          goal_time: r.goalTime || null,
+          notes: r.notes || null,
+          kit_date: r.kitDate || null,
+          status: r.status || 'upcoming'
+        }));
+
+        const { error } = await supabase
+          .from('races')
+          .insert(racesToInsert);
+
+        if (error) throw error;
+        console.log('Migração de dados locais concluída com sucesso!');
+      }
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (err) {
+      console.error('Erro na migração de corridas locais:', err);
+    }
+  };
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) setRaces(JSON.parse(saved));
-    } catch {}
+    const idStr = getCookie('strava_athlete_id');
+    if (idStr) {
+      const id = Number(idStr);
+      setAthleteId(id);
+      migrateLocalRaces(id).then(() => {
+        loadRaces(id);
+      });
+    }
 
     if (typeof window !== 'undefined') {
       const hasNotification = 'Notification' in window;
@@ -73,26 +158,65 @@ export default function RacesPage() {
     }
   }, []);
 
-  const requestNotificationPermission = () => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      Notification.requestPermission().then(perm => {
-        setPermission(perm);
-      });
+  const requestNotificationPermission = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window) || !('serviceWorker' in navigator)) {
+      alert('Seu dispositivo ou navegador não suporta notificações web.');
+      return;
+    }
+
+    try {
+      const perm = await Notification.requestPermission();
+      setPermission(perm);
+      
+      if (perm === 'granted' && athleteId) {
+        // Registra o Service Worker
+        const registration = await navigator.serviceWorker.register('/sw.js');
+        console.log('Service Worker registrado:', registration);
+
+        // Aguarda a ativação do Service Worker se necessário
+        await navigator.serviceWorker.ready;
+
+        // Gera a inscrição de push
+        const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BDE93rVC1zLJPB6EXpZYfqHKimxro-PVkcu3UNDYVnvmeCobyBMU7QPrdJeqk7HZLUo0-vCsZP1j90ZrnPVicHU';
+        const convertedKey = urlBase64ToUint8Array(publicKey);
+
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: convertedKey
+        });
+
+        // Envia para o Supabase via API
+        const res = await fetch('/api/notifications/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subscription, athleteId })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || 'Erro ao registrar no banco de dados.');
+        }
+        console.log('Inscrição de push salva com sucesso no Supabase!');
+      }
+    } catch (err: any) {
+      console.error('Erro ao ativar notificações:', err);
+      alert('Erro ao ativar lembretes: ' + err.message);
     }
   };
 
-  const sendTestNotification = () => {
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-      new Notification('🏃 Aura Run', {
-        body: 'Parabéns! Suas notificações estão ativas e funcionando no seu celular. 🚀',
-        icon: '/logo.png'
-      });
+  const sendTestNotification = async () => {
+    if (!athleteId) return;
+    try {
+      const res = await fetch(`/api/notifications/send-daily?test_athlete_id=${athleteId}`);
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Erro ao enviar teste');
+      }
+      alert('Notificação de teste disparada! Chegará em breve no seu celular. 🚀');
+    } catch (err: any) {
+      console.error('Erro ao testar push:', err);
+      alert('Erro no teste de notificação: ' + err.message);
     }
-  };
-
-  const save = (updated: Race[]) => {
-    setRaces(updated);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
   };
 
   const openAdd = () => {
@@ -119,29 +243,55 @@ export default function RacesPage() {
     setShowForm(true);
   };
 
-  const submit = () => {
-    if (!form.name || !form.date) return;
+  const submit = async () => {
+    if (!form.name || !form.date || !athleteId) return;
     const finalDistance = isCustom ? form.customDistance : form.distance;
     const data = { 
+      athlete_id: athleteId,
       name: form.name, 
       date: form.date, 
       distance: finalDistance || form.distance, 
       city: form.city, 
-      goalTime: form.goalTime, 
-      notes: form.notes,
-      kitDate: form.kitDate
+      goal_time: form.goalTime || null, 
+      notes: form.notes || null,
+      kit_date: form.kitDate || null,
+      status: 'upcoming'
     };
 
-    if (editId) {
-      save(races.map(r => r.id === editId ? { ...r, ...data } : r));
-    } else {
-      const newRace: Race = { id: Date.now().toString(), ...data, status: 'upcoming' };
-      save([...races, newRace].sort((a, b) => a.date.localeCompare(b.date)));
+    try {
+      if (editId) {
+        const { error } = await supabase
+          .from('races')
+          .update(data)
+          .eq('id', editId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('races')
+          .insert([data]);
+        if (error) throw error;
+      }
+      
+      await loadRaces(athleteId);
+      setShowForm(false);
+    } catch (err) {
+      console.error('Erro ao salvar corrida:', err);
     }
-    setShowForm(false);
   };
 
-  const remove = (id: string) => save(races.filter(r => r.id !== id));
+  const remove = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('races')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+
+      setRaces(prev => prev.filter(r => r.id !== id));
+    } catch (err) {
+      console.error('Erro ao deletar corrida:', err);
+    }
+  };
 
   const upcoming = races.filter(r => daysUntil(r.date) >= 0).sort((a, b) => a.date.localeCompare(b.date));
   const past = races.filter(r => daysUntil(r.date) < 0).sort((a, b) => b.date.localeCompare(a.date));
