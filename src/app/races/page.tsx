@@ -158,6 +158,33 @@ export default function RacesPage() {
     }
   }, []);
 
+  // Registra automaticamente a inscrição se a permissão já foi concedida anteriormente
+  useEffect(() => {
+    const autoSubscribe = async () => {
+      if (athleteId && permission === 'granted' && typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+        try {
+          const registration = await navigator.serviceWorker.register('/sw.js');
+          await navigator.serviceWorker.ready;
+          const publicKey = (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BDE93rVC1zLJPB6EXpZYfqHKimxro-PVkcu3UNDYVnvmeCobyBMU7QPrdJeqk7HZLUo0-vCsZP1j90ZrnPVicHU').trim();
+          const convertedKey = urlBase64ToUint8Array(publicKey);
+          const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: convertedKey
+          });
+          await fetch('/api/notifications/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subscription, athleteId })
+          });
+          console.log('Dispositivo registrado automaticamente em segundo plano.');
+        } catch (err) {
+          console.warn('Erro ao auto-registrar notificações:', err);
+        }
+      }
+    };
+    autoSubscribe();
+  }, [athleteId, permission]);
+
   const requestNotificationPermission = async () => {
     if (typeof window === 'undefined' || !('Notification' in window) || !('serviceWorker' in navigator)) {
       alert('Seu dispositivo ou navegador não suporta notificações web.');
@@ -210,6 +237,37 @@ export default function RacesPage() {
       const res = await fetch(`/api/notifications/send-daily?test_athlete_id=${athleteId}`);
       if (!res.ok) {
         const data = await res.json();
+        
+        // Se der erro de dispositivo não registrado, tenta registrar na hora e re-enviar
+        if (data.error && data.error.includes('Nenhum dispositivo registrado')) {
+          console.log('Inscrição não encontrada. Tentando registrar dispositivo agora...');
+          
+          if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+            const registration = await navigator.serviceWorker.register('/sw.js');
+            await navigator.serviceWorker.ready;
+            const publicKey = (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BDE93rVC1zLJPB6EXpZYfqHKimxro-PVkcu3UNDYVnvmeCobyBMU7QPrdJeqk7HZLUo0-vCsZP1j90ZrnPVicHU').trim();
+            const convertedKey = urlBase64ToUint8Array(publicKey);
+            const subscription = await registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: convertedKey
+            });
+            await fetch('/api/notifications/subscribe', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ subscription, athleteId })
+            });
+            
+            // Tenta enviar o teste novamente
+            const retryRes = await fetch(`/api/notifications/send-daily?test_athlete_id=${athleteId}`);
+            if (!retryRes.ok) {
+              const retryData = await retryRes.json();
+              throw new Error(retryData.error || 'Erro ao enviar teste após registro.');
+            }
+            alert('Seu dispositivo foi registrado com sucesso e a notificação de teste foi enviada! 🚀');
+            return;
+          }
+        }
+        
         throw new Error(data.error || 'Erro ao enviar teste');
       }
       alert('Notificação de teste disparada! Chegará em breve no seu celular. 🚀');
