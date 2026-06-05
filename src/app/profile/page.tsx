@@ -36,7 +36,7 @@ export default async function ProfilePage() {
   const ytdKm = statsData?.ytd_run_totals?.distance ? (statsData.ytd_run_totals.distance / 1000) : 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', paddingBottom: '100px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', paddingBottom: 'calc(120px + env(safe-area-inset-bottom, 0px))' }}>
 
       {/* Hero header */}
       <div style={{

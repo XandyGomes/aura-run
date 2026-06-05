@@ -520,28 +520,14 @@ export default function WorkoutPage() {
       <div className={styles.controls}>
         {isIdle && (
           <>
-            <button className={styles.startBtn} onClick={handleStart}>
-              ▶ Iniciar Treino GPS
-            </button>
+            <div className={styles.controlsRow}>
+              <button className={styles.startBtn} onClick={handleStart}>
+                ▶ Iniciar Treino GPS
+              </button>
+            </div>
             <button
+              className={styles.treadmillBtn}
               onClick={() => router.push('/workout/treadmill')}
-              style={{
-                width: '100%',
-                padding: '14px',
-                borderRadius: '18px',
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.12)',
-                color: 'rgba(255,255,255,0.8)',
-                fontSize: '15px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                marginTop: '10px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-              }}
             >
               🏃 Corrida na Esteira
             </button>
@@ -549,17 +535,17 @@ export default function WorkoutPage() {
         )}
 
         {isRunning && (
-          <>
+          <div className={styles.controlsRow}>
             <button className={styles.secondaryBtn} onClick={handlePause}>⏸ Pausar</button>
             <button className={styles.finishBtn} onClick={handleFinish}>■ Finalizar</button>
-          </>
+          </div>
         )}
 
         {isPaused && (
-          <>
+          <div className={styles.controlsRow}>
             <button className={styles.startBtn} onClick={handleResume}>▶ Retomar</button>
             <button className={styles.finishBtn} onClick={handleFinish}>■ Finalizar</button>
-          </>
+          </div>
         )}
       </div>
 

@@ -165,7 +165,7 @@ export default async function Home() {
   const recentActs = activities.slice(0, 5);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", paddingBottom: "100px" }}>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", paddingBottom: "calc(120px + env(safe-area-inset-bottom, 0px))" }}>
 
       {/* ── Hero ── */}
       <div style={{ padding: "52px 20px 28px", background: "linear-gradient(180deg, rgba(255,77,0,0.08) 0%, transparent 100%)", position: "relative", overflow: "hidden" }}>

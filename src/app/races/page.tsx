@@ -365,7 +365,7 @@ export default function RacesPage() {
   const nextRace = upcoming[0];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', paddingBottom: '100px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', paddingBottom: 'calc(120px + env(safe-area-inset-bottom, 0px))' }}>
 
       {/* Header */}
       <div style={{ padding: '52px 16px 24px', background: 'linear-gradient(180deg, rgba(255,77,0,0.08) 0%, transparent 100%)' }}>

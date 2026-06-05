@@ -34,36 +34,34 @@ Se um campo não estiver visível no painel, use null.
 Converta o tempo para segundos: se vir "30:00" = 1800 segundos.
 Se a distância estiver em milhas, converta para km (1 milha = 1.609 km).`;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  inlineData: {
-                    mimeType,
-                    data: imageBase64,
-                  },
-                },
-                { text: prompt },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 512,
-          },
-        }),
-      }
-    );
+    const tryModel = async (model: string) => {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { inlineData: { mimeType, data: imageBase64 } },
+                  { text: prompt },
+                ],
+              },
+            ],
+            generationConfig: { temperature: 0.1, maxOutputTokens: 512 },
+          }),
+        }
+      );
+      if (!response.ok) throw new Error(`Model ${model} error: ${response.status}`);
+      return response;
+    };
 
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`Gemini API erro: ${response.status} – ${err}`);
+    let response;
+    try {
+      response = await tryModel('gemini-2.5-flash-preview-05-20');
+    } catch {
+      response = await tryModel('gemini-2.0-flash');
     }
 
     const data = await response.json();

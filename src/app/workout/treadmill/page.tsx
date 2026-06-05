@@ -4,12 +4,14 @@ import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import BottomNav from '@/components/BottomNav';
 import { supabase } from '@/lib/supabase';
+import styles from './treadmill.module.css';
 
+/* ── Helpers ── */
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  const v = `; ${document.cookie}`;
+  const p = v.split(`; ${name}=`);
+  if (p.length === 2) return p.pop()?.split(';').shift() || null;
   return null;
 }
 
@@ -20,6 +22,7 @@ function fmtPace(distKm: number, timeSec: number): string {
 }
 
 function secToDisplay(sec: number): string {
+  if (!sec) return '--:--';
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = Math.floor(sec % 60);
@@ -29,24 +32,32 @@ function secToDisplay(sec: number): string {
 
 function displayToSec(val: string): number {
   const parts = val.split(':').map(Number);
-  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + (parts[2] || 0);
+  if (parts.length === 2) return (parts[0] || 0) * 60 + (parts[1] || 0);
   return Number(val) || 0;
 }
+
+function estCalories(distKm: number, timeSec: number): number {
+  if (!distKm || !timeSec) return 0;
+  return Math.round(distKm * 60); // ~60 kcal/km estimado
+}
+
+/* ── Types ── */
+type Mode = 'choose' | 'photo' | 'form' | 'saved';
 
 export default function TreadmillPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [mode, setMode] = useState<'choose' | 'photo' | 'manual' | 'review' | 'saved'>('choose');
+  const [mode, setMode] = useState<Mode>('choose');
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState('');
   const [imagePreview, setImagePreview] = useState('');
+  const [confidence, setConfidence] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Form data
   const [form, setForm] = useState({
-    name: `Esteira – ${new Date().toLocaleDateString('pt-BR')}`,
+    name: `Esteira – ${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`,
     distance: '',
     timeDisplay: '',
     speed: '',
@@ -54,90 +65,66 @@ export default function TreadmillPage() {
     incline: '',
   });
 
-  const [confidence, setConfidence] = useState<number | null>(null);
-
-  const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  /* ── Photo capture ── */
+  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Preview
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const result = ev.target?.result as string;
-      setImagePreview(result);
-    };
-    reader.readAsDataURL(file);
+    const previewReader = new FileReader();
+    previewReader.onload = (ev) => setImagePreview(ev.target?.result as string);
+    previewReader.readAsDataURL(file);
 
-    // Send to AI
     setScanning(true);
     setScanError('');
+    setMode('photo');
 
-    try {
-      const base64Reader = new FileReader();
-      base64Reader.onload = async (ev) => {
+    const base64Reader = new FileReader();
+    base64Reader.onload = async (ev) => {
+      try {
         const dataUrl = ev.target?.result as string;
-        // Remove the "data:image/...;base64," prefix
         const base64 = dataUrl.split(',')[1];
-        const mimeType = file.type || 'image/jpeg';
-
         const res = await fetch('/api/ai/treadmill-scan', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBase64: base64, mimeType }),
+          body: JSON.stringify({ imageBase64: base64, mimeType: file.type || 'image/jpeg' }),
         });
-
         const json = await res.json();
-
-        if (!res.ok || !json.success) {
-          throw new Error(json.error || 'Falha ao analisar imagem');
-        }
+        if (!res.ok || !json.success) throw new Error(json.error || 'Falha ao analisar');
 
         const d = json.data;
-        setForm((prev) => ({
+        setForm(prev => ({
           ...prev,
           distance: d.distance != null ? String(d.distance) : prev.distance,
           timeDisplay: d.time != null ? secToDisplay(d.time) : prev.timeDisplay,
           speed: d.speed != null ? String(d.speed) : prev.speed,
-          calories: d.calories != null ? String(d.calories) : prev.calories,
+          calories: d.calories != null ? String(Math.round(d.calories)) : prev.calories,
           incline: d.incline != null ? String(d.incline) : prev.incline,
         }));
-        setConfidence(d.confidence);
-        setMode('manual'); // Mostra form com dados pré-preenchidos
-      };
-      base64Reader.readAsDataURL(file);
-    } catch (err: any) {
-      setScanError(err.message || 'Erro ao analisar imagem');
-      setMode('manual');
-    } finally {
-      setScanning(false);
-    }
+        setConfidence(d.confidence ?? null);
+      } catch (err: any) {
+        setScanError(err.message || 'Erro ao analisar imagem');
+      } finally {
+        setScanning(false);
+        setMode('form');
+      }
+    };
+    base64Reader.readAsDataURL(file);
   };
 
+  /* ── Save ── */
   const handleSave = async () => {
     const distKm = parseFloat(form.distance);
     const timeSec = displayToSec(form.timeDisplay);
-    const speed = parseFloat(form.speed) || 0;
-    const cals = parseInt(form.calories) || 0;
+    if (!distKm || distKm <= 0) return alert('Informe a distância em km.');
+    if (!timeSec || timeSec <= 0) return alert('Informe o tempo (ex: 30:00).');
+    const athleteIdStr = getCookie('strava_athlete_id');
+    if (!athleteIdStr) return alert('Você precisa estar conectado ao Strava para salvar.');
 
-    if (!distKm || distKm <= 0) {
-      alert('Por favor, informe a distância.');
-      return;
-    }
-    if (!timeSec || timeSec <= 0) {
-      alert('Por favor, informe o tempo (ex: 30:00).');
-      return;
-    }
-
-    const idStr = getCookie('strava_athlete_id');
-    if (!idStr) {
-      alert('Você precisa estar conectado ao Strava para salvar treinos.');
-      return;
-    }
-
+    const cals = parseInt(form.calories) || estCalories(distKm, timeSec);
     setSaving(true);
     try {
       const { error } = await supabase.from('recorded_workouts').insert({
-        athlete_id: Number(idStr),
+        athlete_id: Number(athleteIdStr),
         name: form.name,
         distance: distKm,
         moving_time: timeSec,
@@ -148,10 +135,9 @@ export default function TreadmillPage() {
         source: imagePreview ? 'photo_scan' : 'manual',
         gps_points: [],
         splits: [],
-        avg_speed: speed,
+        avg_speed: parseFloat(form.speed) || 0,
         incline: parseFloat(form.incline) || 0,
       });
-
       if (error) throw error;
       setMode('saved');
     } catch (err: any) {
@@ -163,300 +149,297 @@ export default function TreadmillPage() {
 
   const distKm = parseFloat(form.distance) || 0;
   const timeSec = displayToSec(form.timeDisplay);
+  const cals = parseInt(form.calories) || (distKm > 0 && timeSec > 0 ? estCalories(distKm, timeSec) : 0);
 
-  // ── Tela de sucesso ──
+  /* ────────────────────────────────────────────
+     SUCCESS SCREEN
+  ──────────────────────────────────────────── */
   if (mode === 'saved') {
     return (
-      <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', paddingBottom: '120px' }}>
-        <div style={{ width: 80, height: 80, borderRadius: 24, background: 'linear-gradient(135deg, #00E5A0, #00C87A)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, marginBottom: 24, boxShadow: '0 0 40px rgba(0,229,160,0.4)' }}>
-          ✅
-        </div>
-        <h1 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8, textAlign: 'center' }}>Treino Salvo!</h1>
-        <p style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', marginBottom: 32 }}>
-          Sua corrida na esteira foi registrada com sucesso.
-        </p>
+      <div className={styles.savedContainer}>
+        <div className={styles.savedScrollable}>
+          {/* Success icon */}
+          <div className={styles.successIcon}>✅</div>
 
-        {/* Stats rápidos */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, width: '100%', maxWidth: 360, marginBottom: 32 }}>
-          {[
-            { label: 'Distância', value: `${distKm.toFixed(2)} km` },
-            { label: 'Tempo', value: secToDisplay(timeSec) },
-            { label: 'Pace', value: `${fmtPace(distKm, timeSec)}/km` },
-            { label: 'Calorias', value: form.calories ? `${form.calories} kcal` : '--' },
-          ].map((s) => (
-            <div key={s.label} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: '16px 12px', textAlign: 'center' }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: '#FF4D00', marginBottom: 4 }}>{s.value}</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>{s.label}</div>
-            </div>
-          ))}
-        </div>
+          <h1 className={styles.successTitle}>
+            Treino Salvo!
+          </h1>
+          <p className={styles.successDesc}>
+            Sua corrida na esteira foi registrada com sucesso.
+          </p>
 
-        <button onClick={() => router.push('/stats')} style={{ width: '100%', maxWidth: 360, padding: '16px', borderRadius: 18, background: 'linear-gradient(135deg,#FF4D00,#FF7340)', border: 'none', color: 'white', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 12 }}>
-          📊 Ver Estatísticas
-        </button>
-        <button onClick={() => router.push('/')} style={{ width: '100%', maxWidth: 360, padding: '14px', borderRadius: 18, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-          🏠 Início
-        </button>
+          {/* Stats */}
+          <div className={styles.statsGrid}>
+            {[
+              { icon: '📏', label: 'Distância', value: `${distKm.toFixed(2)} km` },
+              { icon: '⏱️', label: 'Tempo', value: secToDisplay(timeSec) },
+              { icon: '⚡', label: 'Pace', value: `${fmtPace(distKm, timeSec)}/km` },
+              { icon: '🔥', label: 'Calorias', value: `${cals} kcal` },
+            ].map(s => (
+              <div key={s.label} className={styles.statCard}>
+                <div className={styles.statCardIcon}>{s.icon}</div>
+                <div className={styles.statCardVal}>{s.value}</div>
+                <div className={styles.statCardLbl}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className={styles.actionsColumn}>
+            <button onClick={() => router.push('/stats')} className={styles.btnPrimaryAction}>
+              📊 Ver Estatísticas
+            </button>
+            <button onClick={() => router.push('/')} className={styles.btnSecondaryAction}>
+              🏠 Início
+            </button>
+            {/* Espaçador para evitar sobreposição do BottomNav */}
+            <div style={{ height: 40, flexShrink: 0 }} />
+          </div>
+        </div>
         <BottomNav />
       </div>
     );
   }
 
-  return (
-    <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', paddingBottom: '120px', maxWidth: 500, margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ padding: '52px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', padding: 0, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
-          ← Voltar
-        </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ width: 52, height: 52, borderRadius: 16, background: 'linear-gradient(135deg,rgba(255,77,0,0.2),rgba(255,77,0,0.1))', border: '1px solid rgba(255,77,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>
-            🏃
-          </div>
-          <div>
-            <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 2 }}>Esteira</h1>
-            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>Registre seu treino na esteira</p>
+  /* ────────────────────────────────────────────
+     SCANNING SCREEN
+  ──────────────────────────────────────────── */
+  if (mode === 'photo' && scanning) {
+    return (
+      <div className={styles.container}>
+        {/* Header */}
+        <div className={styles.header}>
+          <button onClick={() => { setScanning(false); setMode('choose'); }} className={styles.btnBack}>
+            ← Cancelar
+          </button>
+        </div>
+
+        <div className={styles.content} style={{ justifyContent: 'center', alignItems: 'center' }}>
+          {/* Photo preview with scan effect */}
+          {imagePreview && (
+            <div className={styles.scanContainer}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={imagePreview} alt="Painel" className={styles.scanImg} />
+              <div className={styles.scanOverlay}>
+                <div className={styles.spinner} />
+                <span className={styles.scanText}>Analisando painel...</span>
+              </div>
+            </div>
+          )}
+
+          <div style={{ textAlign: 'center' }}>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 8 }}>Gemini Vision ativo</h2>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, lineHeight: 1.6 }}>
+              A IA está lendo distância, tempo,<br />velocidade e calorias do painel
+            </p>
           </div>
         </div>
+        <BottomNav />
       </div>
+    );
+  }
 
-      <div style={{ flex: 1, padding: '24px 20px' }}>
-
-        {/* ── ESCOLHA: Foto ou Manual ── */}
-        {mode === 'choose' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', marginBottom: 8 }}>
-              Como deseja registrar seu treino?
-            </p>
-
-            {/* Opção: Foto */}
-            <button
-              onClick={() => { setMode('photo'); setTimeout(() => fileInputRef.current?.click(), 100); }}
-              style={{
-                padding: '24px 20px', borderRadius: 20, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-                background: 'linear-gradient(135deg, rgba(0,229,255,0.1), rgba(0,114,255,0.05))',
-                border: '1px solid rgba(0,229,255,0.2)',
-                transition: 'border-color 0.2s, background 0.2s',
-              }}
-            >
-              <div style={{ fontSize: 32, marginBottom: 10 }}>📷</div>
-              <div style={{ fontSize: 17, fontWeight: 700, color: 'white', marginBottom: 4 }}>Tirar Foto do Painel</div>
-              <div style={{ fontSize: 13, color: 'rgba(0,229,255,0.7)' }}>
-                IA analisa automaticamente distância, tempo, velocidade e calorias
-              </div>
-            </button>
-
-            {/* Opção: Manual */}
-            <button
-              onClick={() => setMode('manual')}
-              style={{
-                padding: '24px 20px', borderRadius: 20, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(255,255,255,0.1)',
-              }}
-            >
-              <div style={{ fontSize: 32, marginBottom: 10 }}>✏️</div>
-              <div style={{ fontSize: 17, fontWeight: 700, color: 'white', marginBottom: 4 }}>Inserir Manualmente</div>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>
-                Preencha os dados do treino você mesmo
-              </div>
-            </button>
+  /* ────────────────────────────────────────────
+     CHOOSE MODE SCREEN
+  ──────────────────────────────────────────── */
+  if (mode === 'choose') {
+    return (
+      <div className={styles.container}>
+        {/* Header */}
+        <div className={`${styles.header} ${styles.headerChoose}`}>
+          <button onClick={() => router.back()} className={styles.btnBack}>
+            ← Voltar
+          </button>
+          <div className={styles.titleRow}>
+            <div className={styles.titleIcon}>🏃</div>
+            <div className={styles.titleText}>
+              <h1>Corrida na Esteira</h1>
+              <p>Registre com IA ou manualmente</p>
+            </div>
           </div>
-        )}
+        </div>
 
-        {/* ── FOTO: Scanning ── */}
-        {mode === 'photo' && scanning && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, padding: '40px 0' }}>
-            {imagePreview && (
-              <div style={{ position: 'relative', width: '100%', borderRadius: 20, overflow: 'hidden', border: '1px solid rgba(0,229,255,0.2)' }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={imagePreview} alt="Painel da esteira" style={{ width: '100%', height: 220, objectFit: 'cover' }} />
-                <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
-                  <div style={{ width: 40, height: 40, border: '3px solid rgba(0,229,255,0.3)', borderTop: '3px solid #00E5FF', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                  <span style={{ color: '#00E5FF', fontWeight: 600, fontSize: 14 }}>Analisando painel...</span>
+        <div className={styles.content}>
+          {/* AI Photo option */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className={styles.cardAi}
+          >
+            <div>
+              <div className={styles.cardHeader}>
+                <div className={`${styles.cardIcon} ${styles.cardIconAi}`}>📷</div>
+                <div>
+                  <div className={styles.cardTitle}>Foto do Painel</div>
+                  <div className={`${styles.cardSubtitle} ${styles.cardSubtitleAi}`}>Gemini Vision AI</div>
                 </div>
               </div>
-            )}
-            {!imagePreview && (
-              <>
-                <div style={{ width: 60, height: 60, border: '3px solid rgba(0,229,255,0.3)', borderTop: '3px solid #00E5FF', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                <p style={{ color: '#00E5FF', fontWeight: 600 }}>Analisando painel com IA...</p>
-              </>
-            )}
-            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, textAlign: 'center' }}>
-              Gemini Vision está lendo os dados do painel da esteira
+              <p className={styles.cardDesc}>
+                Tire uma foto do painel da esteira e a IA preenche automaticamente distância, tempo, velocidade, inclinação e calorias.
+              </p>
+              <div className={styles.cardTags}>
+                {['Distância', 'Tempo', 'Velocidade', 'Calorias', 'Inclinação'].map(tag => (
+                  <span key={tag} className={styles.tag}>{tag}</span>
+                ))}
+              </div>
+            </div>
+          </button>
+
+          {/* Manual option */}
+          <button
+            onClick={() => setMode('form')}
+            className={styles.cardManual}
+          >
+            <div className={styles.cardHeader}>
+              <div className={`${styles.cardIcon} ${styles.cardIconManual}`}>✏️</div>
+              <div>
+                <div className={styles.cardTitle}>Inserir Manualmente</div>
+                <div className={`${styles.cardSubtitle} ${styles.cardSubtitleManual}`}>Preencha os dados você mesmo</div>
+              </div>
+            </div>
+            <p className={styles.cardDesc}>
+              Ideal quando o painel é difícil de fotografar ou você preferir digitar os valores.
             </p>
-          </div>
-        )}
+          </button>
 
-        {/* ── FORMULÁRIO (manual ou pós-scan) ── */}
-        {(mode === 'manual' || (mode === 'photo' && !scanning)) && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Espaçador para evitar sobreposição do BottomNav */}
+          <div style={{ height: 80, flexShrink: 0 }} />
+        </div>
 
-            {/* Preview da foto (se tirou foto) */}
-            {imagePreview && (
-              <div style={{ borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={imagePreview} alt="Painel escaneado" style={{ width: '100%', height: 160, objectFit: 'cover' }} />
-              </div>
-            )}
+        <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handlePhotoCapture} />
+        <BottomNav />
+      </div>
+    );
+  }
 
-            {/* Badge de confiança */}
-            {confidence != null && (
-              <div style={{
-                padding: '10px 16px', borderRadius: 12,
-                background: confidence > 0.7 ? 'rgba(0,229,160,0.1)' : 'rgba(255,176,32,0.1)',
-                border: `1px solid ${confidence > 0.7 ? 'rgba(0,229,160,0.3)' : 'rgba(255,176,32,0.3)'}`,
-                fontSize: 13, fontWeight: 600,
-                color: confidence > 0.7 ? '#00E5A0' : '#FFB020',
-              }}>
-                {confidence > 0.7 ? '✅' : '⚠️'} IA leu com {Math.round(confidence * 100)}% de confiança — revise os dados abaixo
-              </div>
-            )}
-
-            {scanError && (
-              <div style={{ padding: '10px 16px', borderRadius: 12, background: 'rgba(255,77,0,0.1)', border: '1px solid rgba(255,77,0,0.25)', fontSize: 13, color: '#FF4D00' }}>
-                ⚠️ {scanError} — preencha manualmente.
-              </div>
-            )}
-
-            {/* Nome */}
-            <div>
-              <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: 600, letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>Nome do Treino</label>
-              <input
-                type="text"
-                value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                style={{ width: '100%', padding: '14px 16px', borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: 15, outline: 'none', fontFamily: 'inherit' }}
-              />
-            </div>
-
-            {/* Distância + Tempo */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: 600, letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>Distância (km) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="5.00"
-                  value={form.distance}
-                  onChange={e => setForm(f => ({ ...f, distance: e.target.value }))}
-                  style={{ width: '100%', padding: '14px 16px', borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: 15, outline: 'none', fontFamily: 'inherit' }}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: 600, letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>Tempo (mm:ss) *</label>
-                <input
-                  type="text"
-                  placeholder="30:00"
-                  value={form.timeDisplay}
-                  onChange={e => setForm(f => ({ ...f, timeDisplay: e.target.value }))}
-                  style={{ width: '100%', padding: '14px 16px', borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: 15, outline: 'none', fontFamily: 'inherit' }}
-                />
-              </div>
-            </div>
-
-            {/* Velocidade + Inclinação */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: 600, letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>Velocidade (km/h)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  placeholder="10.0"
-                  value={form.speed}
-                  onChange={e => setForm(f => ({ ...f, speed: e.target.value }))}
-                  style={{ width: '100%', padding: '14px 16px', borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: 15, outline: 'none', fontFamily: 'inherit' }}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: 600, letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>Inclinação (%)</label>
-                <input
-                  type="number"
-                  step="0.5"
-                  placeholder="0"
-                  value={form.incline}
-                  onChange={e => setForm(f => ({ ...f, incline: e.target.value }))}
-                  style={{ width: '100%', padding: '14px 16px', borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: 15, outline: 'none', fontFamily: 'inherit' }}
-                />
-              </div>
-            </div>
-
-            {/* Calorias */}
-            <div>
-              <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: 600, letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>Calorias (kcal)</label>
-              <input
-                type="number"
-                placeholder="300"
-                value={form.calories}
-                onChange={e => setForm(f => ({ ...f, calories: e.target.value }))}
-                style={{ width: '100%', padding: '14px 16px', borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: 15, outline: 'none', fontFamily: 'inherit' }}
-              />
-            </div>
-
-            {/* Preview das estatísticas */}
-            {distKm > 0 && timeSec > 0 && (
-              <div style={{ background: 'linear-gradient(135deg, rgba(255,77,0,0.1), rgba(255,77,0,0.05))', border: '1px solid rgba(255,77,0,0.2)', borderRadius: 16, padding: '16px 20px' }}>
-                <p style={{ fontSize: 12, color: 'rgba(255,77,0,0.7)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Estatísticas Calculadas</p>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                  {[
-                    { label: 'Pace', value: `${fmtPace(distKm, timeSec)}/km` },
-                    { label: 'Distância', value: `${distKm.toFixed(2)} km` },
-                    { label: 'Tempo', value: secToDisplay(timeSec) },
-                  ].map(s => (
-                    <div key={s.label} style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: 16, fontWeight: 800, color: '#FF4D00' }}>{s.value}</div>
-                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{s.label}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Botões */}
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              style={{
-                width: '100%', padding: '16px', borderRadius: 18, border: 'none', fontFamily: 'inherit', fontSize: 16, fontWeight: 700, cursor: saving ? 'default' : 'pointer',
-                background: saving ? 'rgba(255,255,255,0.1)' : 'linear-gradient(135deg,#FF4D00,#FF7340)',
-                color: 'white',
-                transition: 'background 0.2s',
-                boxShadow: saving ? 'none' : '0 4px 24px rgba(255,77,0,0.35)',
-              }}
-            >
-              {saving ? '💾 Salvando...' : '💾 Salvar Treino'}
-            </button>
-
-            {imagePreview && (
-              <button
-                onClick={() => { setImagePreview(''); setConfidence(null); fileInputRef.current?.click(); }}
-                style={{ width: '100%', padding: '13px', borderRadius: 16, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
-              >
-                📷 Tirar Outra Foto
-              </button>
-            )}
-          </div>
-        )}
+  /* ────────────────────────────────────────────
+     FORM SCREEN (manual + post-scan)
+  ──────────────────────────────────────────── */
+  return (
+    <div className={styles.container}>
+      {/* Header */}
+      <div className={styles.header}>
+        <button onClick={() => setMode('choose')} className={styles.btnBack}>
+          ← Voltar
+        </button>
+        <h1 style={{ fontSize: 20, fontWeight: 800, color: '#fff', marginBottom: 4 }}>
+          {imagePreview ? '📷 Dados do Painel' : '✏️ Inserir Dados'}
+        </h1>
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>Preencha ou corrija os dados do treino</p>
       </div>
 
-      {/* Input de arquivo oculto */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        style={{ display: 'none' }}
-        onChange={handlePhotoCapture}
-      />
+      {/* Scrollable content */}
+      <div className={styles.content}>
+        {/* Photo preview */}
+        {imagePreview && (
+          <div className={styles.photoPreview}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={imagePreview} alt="Painel escaneado" className={styles.previewImg} />
+            <button
+              onClick={() => { setImagePreview(''); setConfidence(null); fileInputRef.current?.click(); }}
+              className={styles.btnNewPhoto}
+            >
+              📷 Nova foto
+            </button>
+          </div>
+        )}
+
+        {/* Confidence badge */}
+        {confidence != null && !scanError && (
+          <div className={`${styles.badgeConfidence} ${confidence > 0.75 ? styles.badgeOk : styles.badgeWarn}`}>
+            <span style={{ fontSize: 20 }}>{confidence > 0.75 ? '✅' : '⚠️'}</span>
+            <div>
+              <div className={styles.badgeTextTitle}>
+                IA leu com {Math.round(confidence * 100)}% de confiança
+              </div>
+              <div className={styles.badgeTextDesc}>
+                {confidence > 0.75 ? 'Dados preenchidos automaticamente' : 'Revise os dados abaixo'}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Scan error */}
+        {scanError && (
+          <div className={styles.badgeError}>
+            ⚠️ {scanError} — preencha os dados manualmente.
+          </div>
+        )}
+
+        {/* Nome */}
+        <div>
+          <label className={styles.label}>Nome do Treino</label>
+          <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={styles.input} />
+        </div>
+
+        {/* Distância + Tempo */}
+        <div className={styles.grid2}>
+          <div>
+            <label className={styles.label}>Distância (km) *</label>
+            <input type="number" step="0.01" placeholder="5.00" value={form.distance} onChange={e => setForm(f => ({ ...f, distance: e.target.value }))} className={styles.input} />
+          </div>
+          <div>
+            <label className={styles.label}>Tempo (mm:ss) *</label>
+            <input type="text" placeholder="30:00" value={form.timeDisplay} onChange={e => setForm(f => ({ ...f, timeDisplay: e.target.value }))} className={styles.input} />
+          </div>
+        </div>
+
+        {/* Velocidade + Inclinação */}
+        <div className={styles.grid2}>
+          <div>
+            <label className={styles.label}>Velocidade (km/h)</label>
+            <input type="number" step="0.1" placeholder="10.0" value={form.speed} onChange={e => setForm(f => ({ ...f, speed: e.target.value }))} className={styles.input} />
+          </div>
+          <div>
+            <label className={styles.label}>Inclinação (%)</label>
+            <input type="number" step="0.5" placeholder="0" value={form.incline} onChange={e => setForm(f => ({ ...f, incline: e.target.value }))} className={styles.input} />
+          </div>
+        </div>
+
+        {/* Calorias */}
+        <div>
+          <label className={styles.label}>Calorias (kcal)</label>
+          <input
+            type="number" placeholder={distKm > 0 ? `~${estCalories(distKm, timeSec)} (estimado)` : '300'}
+            value={form.calories} onChange={e => setForm(f => ({ ...f, calories: e.target.value }))} className={styles.input}
+          />
+        </div>
+
+        {/* Live stats preview */}
+        {distKm > 0 && timeSec > 0 && (
+          <div className={styles.previewBox}>
+            <p className={styles.previewBoxTitle}>
+              Prévia das Estatísticas
+            </p>
+            <div className={styles.previewGrid}>
+              {[
+                { label: 'Pace', value: `${fmtPace(distKm, timeSec)}/km` },
+                { label: 'Distância', value: `${distKm.toFixed(2)} km` },
+                { label: 'Tempo', value: secToDisplay(timeSec) },
+              ].map(s => (
+                <div key={s.label} className={styles.previewStat}>
+                  <div className={styles.previewVal}>{s.value}</div>
+                  <div className={styles.previewLbl}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Save button */}
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className={saving ? styles.btnSaveDisabled : styles.btnSave}
+        >
+          {saving ? '💾 Salvando...' : '💾 Salvar Treino'}
+        </button>
+
+        {/* Espaçador para evitar sobreposição do BottomNav */}
+        <div style={{ height: 100, flexShrink: 0 }} />
+      </div>
+
+      <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handlePhotoCapture} />
 
       <BottomNav />
-
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
-        input::placeholder { color: rgba(255,255,255,0.2); }
-      `}</style>
     </div>
   );
 }

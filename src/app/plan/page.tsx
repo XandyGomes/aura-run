@@ -55,7 +55,7 @@ export default function PlanPage() {
   const minDateStr = minDate.toISOString().split('T')[0];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', padding: '40px 20px 100px', maxWidth: '500px', margin: '0 auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', padding: '40px 20px calc(120px + env(safe-area-inset-bottom, 0px))', maxWidth: '500px', margin: '0 auto' }}>
       {/* Header */}
       <div style={{ marginBottom: '28px' }}>
         <Link href="/" style={{ fontSize: '14px', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '16px' }}>

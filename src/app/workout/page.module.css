@@ -164,10 +164,17 @@
 /* ── Controles ── */
 .controls {
   display: flex;
-  gap: 12px;
-  padding: 12px 20px 80px; /* 80px para a bottom nav */
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 20px;
+  padding-bottom: calc(16px + 90px + env(safe-area-inset-bottom, 0px));
   background: #0f0f1e;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.controlsRow {
+  display: flex;
+  gap: 12px;
 }
 
 .startBtn {
@@ -217,6 +224,25 @@
   transition: background 0.15s;
 }
 
+.treadmillBtn {
+  width: 100%;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.treadmillBtn:active { background: rgba(255, 255, 255, 0.1); }
 .finishBtn:active { background: rgba(255, 77, 77, 0.2); }
 
 /* ══════════════════════════════════════════
