@@ -121,29 +121,42 @@ const callGroq = async (messages: Message[], maxTokens: number): Promise<string>
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error('GROQ_API_KEY não configurado');
 
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      messages,
-      temperature: 0.7,
-      max_tokens: maxTokens,
-    }),
-  });
+  const tryModel = async (model: string) => {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.7,
+        max_tokens: maxTokens,
+      }),
+    });
 
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Groq ${response.status}: ${err.slice(0, 200)}`);
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`Groq ${model} ${response.status}: ${err.slice(0, 200)}`);
+    }
+
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content;
+    if (!text) throw new Error(`Resposta vazia do Groq model ${model}`);
+    return text;
+  };
+
+  try {
+    return await tryModel('llama-3.3-70b-versatile');
+  } catch (err: any) {
+    console.warn('[AI] Groq llama-3.3-70b-versatile falhou, tentando llama-3.1-8b-instant:', err.message);
+    try {
+      return await tryModel('llama-3.1-8b-instant');
+    } catch (err2: any) {
+      throw new Error(`Groq falhou em todos os modelos: ${err.message} | ${err2.message}`);
+    }
   }
-
-  const data = await response.json();
-  const text = data.choices?.[0]?.message?.content;
-  if (!text) throw new Error('Resposta vazia do Groq');
-  return text;
 };
 
 // Estado do disjuntor (circuit breaker) para o Gemini
