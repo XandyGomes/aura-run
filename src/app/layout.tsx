@@ -20,6 +20,11 @@ export const metadata: Metadata = {
     apple: "/logo.png",
     shortcut: "/logo.png",
   },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Aura Run",
+  },
 };
 
 export const viewport = {
