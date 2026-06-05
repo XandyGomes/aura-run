@@ -49,35 +49,74 @@ Se a distância estiver em milhas, converta para km (1 milha = 1.609 km).`;
                 ],
               },
             ],
-            generationConfig: { temperature: 0.1, maxOutputTokens: 512 },
+            generationConfig: {
+              temperature: 0.1,
+              maxOutputTokens: 512,
+              responseMimeType: 'application/json',
+            },
           }),
         }
       );
-      if (!response.ok) throw new Error(`Model ${model} error: ${response.status}`);
+      if (!response.ok) {
+        let errDetail = '';
+        try {
+          const errJson = await response.json();
+          errDetail = errJson.error?.message || JSON.stringify(errJson.error);
+        } catch {
+          errDetail = `status HTTP ${response.status}`;
+        }
+        throw new Error(`Erro no modelo ${model}: ${errDetail}`);
+      }
       return response;
     };
 
     let response;
     try {
       response = await tryModel('gemini-2.5-flash');
-    } catch {
-      response = await tryModel('gemini-3.5-flash');
+    } catch (err: any) {
+      console.warn('[Treadmill Scan] gemini-2.5-flash falhou, tentando gemini-3.5-flash:', err.message);
+      try {
+        response = await tryModel('gemini-3.5-flash');
+      } catch (err2: any) {
+        throw new Error(`Falha na IA (2.5 & 3.5): ${err.message} | ${err2.message}`);
+      }
     }
 
     const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
+    if (data.promptFeedback?.blockReason) {
+      throw new Error(`Imagem bloqueada pelos filtros do Gemini (${data.promptFeedback.blockReason}).`);
+    }
+
+    const candidate = data.candidates?.[0];
+    if (!candidate) {
+      throw new Error('Nenhum resultado gerado. Verifique se a foto do painel está clara e legível.');
+    }
+
+    if (candidate.finishReason === 'SAFETY') {
+      throw new Error('O resultado foi bloqueado pelos filtros de segurança.');
+    }
+
+    const text = candidate.content?.parts?.[0]?.text;
     if (!text) {
-      throw new Error('Resposta vazia da IA');
+      throw new Error('O modelo respondeu com conteúdo vazio.');
     }
 
-    // Extrai JSON da resposta (remove possíveis backticks de markdown)
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('IA não retornou JSON válido');
+    let extracted;
+    try {
+      extracted = JSON.parse(text);
+    } catch {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error(`A IA não retornou um JSON estruturado. Resposta: ${text}`);
+      }
+      try {
+        extracted = JSON.parse(jsonMatch[0]);
+      } catch {
+        throw new Error(`Erro ao interpretar o JSON extraído: ${jsonMatch[0]}`);
+      }
     }
 
-    const extracted = JSON.parse(jsonMatch[0]);
     return NextResponse.json({ success: true, data: extracted });
   } catch (err: any) {
     console.error('[Treadmill Scan] Erro:', err.message);
