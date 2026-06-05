@@ -177,7 +177,7 @@ export default function RacesPage() {
         await navigator.serviceWorker.ready;
 
         // Gera a inscrição de push
-        const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BDE93rVC1zLJPB6EXpZYfqHKimxro-PVkcu3UNDYVnvmeCobyBMU7QPrdJeqk7HZLUo0-vCsZP1j90ZrnPVicHU';
+        const publicKey = (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BDE93rVC1zLJPB6EXpZYfqHKimxro-PVkcu3UNDYVnvmeCobyBMU7QPrdJeqk7HZLUo0-vCsZP1j90ZrnPVicHU').trim();
         const convertedKey = urlBase64ToUint8Array(publicKey);
 
         const subscription = await registration.pushManager.subscribe({

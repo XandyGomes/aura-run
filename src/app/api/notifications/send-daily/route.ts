@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import webpush from 'web-push';
 
-const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '';
-const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || '';
-const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:alexandre@example.com';
+const vapidPublicKey = (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '').trim();
+const vapidPrivateKey = (process.env.VAPID_PRIVATE_KEY || '').trim();
+const vapidSubject = (process.env.VAPID_SUBJECT || 'mailto:alexandre@example.com').trim();
 
 if (vapidPublicKey && vapidPrivateKey) {
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
