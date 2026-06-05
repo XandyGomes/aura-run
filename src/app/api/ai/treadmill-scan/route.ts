@@ -51,8 +51,20 @@ Se a distância estiver em milhas, converta para km (1 milha = 1.609 km).`;
             ],
             generationConfig: {
               temperature: 0.1,
-              maxOutputTokens: 512,
+              maxOutputTokens: 2048,
               responseMimeType: 'application/json',
+              responseSchema: {
+                type: 'OBJECT',
+                properties: {
+                  distance: { type: 'NUMBER', description: 'Distância em km' },
+                  time: { type: 'INTEGER', description: 'Tempo em segundos' },
+                  speed: { type: 'NUMBER', description: 'Velocidade em km/h' },
+                  calories: { type: 'INTEGER', description: 'Calorias' },
+                  incline: { type: 'NUMBER', description: 'Inclinação em %' },
+                  confidence: { type: 'NUMBER', description: 'Nível de confiança entre 0.0 e 1.0' }
+                },
+                required: ['distance', 'time', 'speed', 'calories', 'incline', 'confidence']
+              }
             },
           }),
         }
