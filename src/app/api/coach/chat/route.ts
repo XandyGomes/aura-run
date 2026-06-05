@@ -264,9 +264,18 @@ INSTRUÇÕES:
     return NextResponse.json({ reply });
 
   } catch (error: any) {
-    console.error('[Chat] Erro:', error);
-    return NextResponse.json({
-      reply: 'Ops, tive um problema técnico. Pode tentar de novo?',
-    });
+    console.error('[Chat] Erro detalhado:', error?.message || error);
+
+    let friendlyMsg = 'Ops, tive um problema técnico. Pode tentar de novo?';
+
+    if (error?.message?.includes('GROQ') || error?.message?.includes('Groq')) {
+      friendlyMsg = '⚠️ Serviço de IA temporariamente indisponível. Estou tentando me recuperar...';
+    } else if (error?.message?.includes('GEMINI') || error?.message?.includes('Gemini')) {
+      friendlyMsg = '⚠️ Serviço de IA com instabilidade. Tente novamente em instantes.';
+    } else if (error?.message?.includes('chave') || error?.message?.includes('API')) {
+      friendlyMsg = '🔧 IA não configurada. Verifique as chaves GROQ_API_KEY e GEMINI_API_KEY no servidor.';
+    }
+
+    return NextResponse.json({ reply: friendlyMsg });
   }
 }

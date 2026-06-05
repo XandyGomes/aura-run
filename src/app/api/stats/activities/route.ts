@@ -9,24 +9,27 @@ export async function GET() {
   const token = cookieStore.get('strava_token')?.value;
   const athleteId = cookieStore.get('strava_athlete_id')?.value;
 
-  if (!token) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-
   try {
+    // ── Atividades do Strava (apenas se token disponível) ──
     const stravaActs: any[] = [];
-    let page = 1;
-    while (page <= 5) {
-      const res = await fetch(
-        `https://www.strava.com/api/v3/athlete/activities?per_page=200&page=${page}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (!res.ok) break;
-      const batch = await res.json();
-      if (!Array.isArray(batch) || batch.length === 0) break;
-      stravaActs.push(...batch);
-      if (batch.length < 200) break;
-      page++;
+    if (token) {
+      let page = 1;
+      while (page <= 5) {
+        const res = await fetch(
+          `https://www.strava.com/api/v3/athlete/activities?per_page=200&page=${page}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        // Token expirou ou inválido: para silenciosamente sem bloquear
+        if (!res.ok) break;
+        const batch = await res.json();
+        if (!Array.isArray(batch) || batch.length === 0) break;
+        stravaActs.push(...batch);
+        if (batch.length < 200) break;
+        page++;
+      }
     }
 
+    // ── Atividades locais (GPS gravado no app + esteira) ──
     let localActs: any[] = [];
     if (athleteId) {
       const { data, error } = await supabase
@@ -37,18 +40,21 @@ export async function GET() {
 
       if (!error && data) {
         localActs = data.map((w: any) => ({
-          id: w.id,
+          id: `local_${w.id}`,
           name: w.name,
-          type: 'Run',
-          sport_type: 'Run',
-          distance: w.distance * 1000, // metros
+          type: w.workout_type === 'treadmill' ? 'Treadmill' : 'Run',
+          sport_type: w.workout_type === 'treadmill' ? 'Treadmill' : 'Run',
+          distance: w.distance * 1000, // armazenado em km → converte p/ metros
           moving_time: w.moving_time,
-          elapsed_time: Math.floor(w.elapsed_time / 1000),
+          elapsed_time: Math.floor((w.elapsed_time || w.moving_time * 1000) / 1000),
           total_elevation_gain: 0,
           start_date: w.start_date,
-          average_speed: w.moving_time > 0 ? (w.distance * 1000) / w.moving_time : 0, // metros/segundo
+          average_speed: w.moving_time > 0 ? (w.distance * 1000) / w.moving_time : 0,
           max_speed: w.moving_time > 0 ? (w.distance * 1000) / w.moving_time : 0,
+          calories: w.calories,
           is_local: true,
+          source: w.source || 'gps',
+          workout_type: w.workout_type || 'run',
         }));
       }
     }

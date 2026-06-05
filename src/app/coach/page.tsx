@@ -93,7 +93,7 @@ function CoachContent() {
       </div>
 
       {/* Messages */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '180px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '220px' }}>
         {messages.map((msg, i) => (
           <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start', gap: '4px', animation: 'fadeUp 0.3s ease both' }}>
             {msg.role === 'aura' && (
@@ -132,12 +132,13 @@ function CoachContent() {
 
       {/* Input area */}
       <div style={{
-        position: 'fixed', bottom: '72px', left: '50%', transform: 'translateX(-50%)',
+        position: 'fixed', bottom: 'calc(68px + env(safe-area-inset-bottom, 0px))', left: '50%', transform: 'translateX(-50%)',
         width: 'calc(100% - 24px)', maxWidth: '476px',
-        background: 'rgba(8,8,16,0.95)', backdropFilter: 'blur(20px)',
+        background: 'rgba(8,8,16,0.97)', backdropFilter: 'blur(20px)',
         borderTop: '1px solid rgba(255,255,255,0.06)',
         borderRadius: '20px 20px 0 0',
         padding: '12px 12px 8px',
+        zIndex: 50,
       }}>
         {/* Suggestion chips (only before first user message) */}
         {messages.length === 1 && (

@@ -302,7 +302,12 @@ export default function RacesPage() {
   };
 
   const submit = async () => {
-    if (!form.name || !form.date || !athleteId) return;
+    if (!athleteId) {
+      alert('Você precisa estar conectado ao Strava para gerenciar suas corridas.');
+      return;
+    }
+    if (!form.name || !form.date) return;
+    
     const finalDistance = isCustom ? form.customDistance : form.distance;
     const data = { 
       athlete_id: athleteId,
@@ -332,12 +337,14 @@ export default function RacesPage() {
       
       await loadRaces(athleteId);
       setShowForm(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao salvar corrida:', err);
+      alert('Erro ao salvar corrida: ' + (err.message || 'Verifique as permissões do banco de dados (RLS) no Supabase.'));
     }
   };
 
   const remove = async (id: string) => {
+    if (!confirm('Deseja realmente excluir esta corrida?')) return;
     try {
       const { error } = await supabase
         .from('races')
@@ -346,8 +353,9 @@ export default function RacesPage() {
       if (error) throw error;
 
       setRaces(prev => prev.filter(r => r.id !== id));
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao deletar corrida:', err);
+      alert('Erro ao excluir corrida: ' + (err.message || 'Erro de permissão no Supabase.'));
     }
   };
 

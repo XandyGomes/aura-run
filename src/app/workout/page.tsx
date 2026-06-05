@@ -519,9 +519,33 @@ export default function WorkoutPage() {
       {/* Controles */}
       <div className={styles.controls}>
         {isIdle && (
-          <button className={styles.startBtn} onClick={handleStart}>
-            ▶ Iniciar Treino
-          </button>
+          <>
+            <button className={styles.startBtn} onClick={handleStart}>
+              ▶ Iniciar Treino GPS
+            </button>
+            <button
+              onClick={() => router.push('/workout/treadmill')}
+              style={{
+                width: '100%',
+                padding: '14px',
+                borderRadius: '18px',
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                color: 'rgba(255,255,255,0.8)',
+                fontSize: '15px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                marginTop: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+              }}
+            >
+              🏃 Corrida na Esteira
+            </button>
+          </>
         )}
 
         {isRunning && (
