@@ -62,7 +62,7 @@ Gerencie seus objetivos:
 
 1. Clone o repositório:
 ```bash
-git clone https://github.com/seu-usuario/aura-run.git
+git clone https://github.com/XandyGomes/aura-run.git
 cd aura-run
 ```
 
