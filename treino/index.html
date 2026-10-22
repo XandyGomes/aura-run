@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1e4d8b">
+<meta name="description" content="Plano de treino e corrida do Xandy, com acompanhamento do Ozivy">
+<title>Treino do Xandy</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Treino">
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #16213a;
+    --card-border: #22304d;
+    --accent: #2f9e5c;
+    --accent2: #2f6db5;
+    --text: #e8edf5;
+    --text-dim: #93a1b8;
+    --danger: #e0636f;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 16px 16px calc(90px + env(safe-area-inset-bottom)); }
+  header.top {
+    position: sticky; top: 0; z-index: 10;
+    background: linear-gradient(135deg, #1e4d8b, #173d70);
+    padding: calc(14px + env(safe-area-inset-top)) 16px 14px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+  }
+  header.top h1 { font-size: 17px; margin: 0; font-weight: 700; }
+  header.top .sub { font-size: 11.5px; color: #bcd3f0; margin-top: 2px; }
+  .status-pill {
+    font-size: 10.5px; background: rgba(255,255,255,0.14); padding: 5px 10px;
+    border-radius: 999px; white-space: nowrap;
+  }
+
+  nav.days {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;
+    margin: 14px 0 18px;
+  }
+  nav.days button {
+    background: var(--card); border: 1px solid var(--card-border);
+    color: var(--text-dim); border-radius: 10px; padding: 8px 2px;
+    font-size: 11px; font-weight: 600; cursor: pointer;
+  }
+  nav.days button .dot {
+    display: block; width: 6px; height: 6px; border-radius: 50%;
+    margin: 4px auto 0; background: transparent;
+  }
+  nav.days button.active { background: var(--accent2); color: white; border-color: var(--accent2); }
+  nav.days button.done:not(.active) { color: var(--accent); border-color: var(--accent); }
+  nav.days button.done .dot { background: var(--accent); }
+  nav.days button.rest:not(.active) { color: #c2a14e; }
+
+  .day-head { margin-bottom: 14px; }
+  .day-head .tag {
+    display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em;
+    padding: 3px 9px; border-radius: 999px; text-transform: uppercase;
+  }
+  .tag.treino { background: rgba(47,109,181,0.22); color: #7fb0ef; }
+  .tag.corrida { background: rgba(47,158,92,0.22); color: #6fdb9a; }
+  .tag.descanso { background: rgba(194,161,78,0.2); color: #e0c070; }
+  .day-head h2 { margin: 8px 0 2px; font-size: 21px; }
+  .day-head p.desc { margin: 0; color: var(--text-dim); font-size: 13.5px; }
+
+  .ozivy-flag {
+    margin-top: 10px; display: flex; gap: 8px; align-items: center;
+    background: rgba(224,99,111,0.14); border: 1px solid rgba(224,99,111,0.35);
+    color: #f3a6ac; padding: 9px 12px; border-radius: 10px; font-size: 12.5px;
+  }
+
+  .section-label {
+    font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-dim); margin: 18px 0 8px;
+  }
+
+  .card {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: var(--radius); padding: 12px 14px; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .card.checked { opacity: 0.55; }
+  .check {
+    width: 26px; height: 26px; min-width: 26px; border-radius: 8px;
+    border: 2px solid #3a4b6e; display: flex; align-items: center; justify-content: center;
+    font-size: 15px; color: transparent; cursor: pointer; background: transparent;
+  }
+  .check.on { background: var(--accent); border-color: var(--accent); color: white; }
+  .card-body { flex: 1; min-width: 0; }
+  .card-body .name { font-weight: 700; font-size: 14.5px; }
+  .card-body .name.strike { text-decoration: line-through; color: var(--text-dim); }
+  .card-body .meta { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+  .yt-link {
+    flex: none; display: flex; align-items: center; justify-content: center;
+    width: 38px; height: 38px; border-radius: 10px;
+    background: rgba(224,54,54,0.14); color: #ff6b6b; text-decoration: none; font-size: 17px;
+  }
+
+  .run-card {
+    background: linear-gradient(135deg, rgba(47,158,92,0.16), rgba(47,158,92,0.04));
+    border: 1px solid rgba(47,158,92,0.35); border-radius: var(--radius);
+    padding: 18px; text-align: center; margin-bottom: 14px;
+  }
+  .run-card .km { font-size: 38px; font-weight: 800; color: var(--accent); }
+  .run-card .km span { font-size: 16px; font-weight: 600; color: var(--text-dim); }
+  .run-card .tip { font-size: 13px; color: var(--text-dim); margin-top: 8px; line-height: 1.5; }
+
+  .rest-card {
+    background: rgba(194,161,78,0.1); border: 1px solid rgba(194,161,78,0.3);
+    border-radius: var(--radius); padding: 22px; text-align: center; color: #e0c070;
+  }
+  .rest-card .big { font-size: 30px; margin-bottom: 6px; }
+
+  .progress-bar {
+    height: 6px; background: #22304d; border-radius: 999px; overflow: hidden; margin: 10px 0 2px;
+  }
+  .progress-bar > div { height: 100%; background: var(--accent); transition: width .25s; }
+  .progress-txt { font-size: 11.5px; color: var(--text-dim); }
+
+  footer.tabbar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: #121c33; border-top: 1px solid var(--card-border);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    display: flex; justify-content: center; gap: 28px;
+  }
+  footer.tabbar button {
+    background: none; border: none; color: var(--text-dim); font-size: 11px;
+    display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer;
+  }
+  footer.tabbar button.active { color: var(--accent2); }
+  footer.tabbar .ic { font-size: 19px; }
+
+  .page { display: none; }
+  .page.visible { display: block; }
+
+  .week-grid { display: flex; flex-direction: column; gap: 8px; }
+  .week-row {
+    display: flex; align-items: center; gap: 10px; background: var(--card);
+    border: 1px solid var(--card-border); border-radius: 12px; padding: 10px 12px;
+  }
+  .week-row .d { width: 70px; font-weight: 700; font-size: 13px; }
+  .week-row .t { flex: 1; font-size: 12.5px; color: var(--text-dim); }
+  .week-row .badge {
+    font-size: 10.5px; padding: 3px 8px; border-radius: 999px; font-weight: 700;
+  }
+
+  .info-card {
+    background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius);
+    padding: 14px; margin-bottom: 10px; font-size: 13px; line-height: 1.6; color: var(--text-dim);
+  }
+  .info-card b { color: var(--text); }
+  .reset-btn {
+    margin-top: 16px; width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--card-border);
+    background: transparent; color: var(--text-dim); font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div>
+    <h1>Treino do Xandy</h1>
+    <div class="sub" id="todayLabel">-</div>
+  </div>
+  <div class="status-pill" id="headerPill">-</div>
+</header>
+
+<div class="wrap">
+
+  <nav class="days" id="dayNav"></nav>
+
+  <!-- PÁGINA: DIA -->
+  <div id="page-dia" class="page visible">
+    <div class="day-head">
+      <span class="tag" id="dayTag">-</span>
+      <h2 id="dayTitle">-</h2>
+      <p class="desc" id="dayDesc">-</p>
+      <div class="ozivy-flag" id="ozivyFlag" style="display:none;">
+        💉 <span>Hoje é dia de aplicar o Ozivy. Se possível, aplique após o treino/corrida.</span>
+      </div>
+    </div>
+
+    <div id="dayContent"></div>
+  </div>
+
+  <!-- PÁGINA: SEMANA -->
+  <div id="page-semana" class="page">
+    <div class="section-label">Visão da semana</div>
+    <div class="week-grid" id="weekGrid"></div>
+  </div>
+
+  <!-- PÁGINA: SAÚDE -->
+  <div id="page-saude" class="page">
+    <div class="section-label">Lembretes de saúde</div>
+    <div class="info-card"><b>Betabloqueador (Selozok):</b> sua frequência cardíaca de esforço fica naturalmente mais baixa. Use a percepção de esforço (consegue conversar?) em vez de só olhar o monitor cardíaco.</div>
+    <div class="info-card"><b>Ozivy:</b> nos 2-3 dias após a aplicação, náusea ou menos energia são esperadas. Reduza carga/volume sem culpa nesses dias.</div>
+    <div class="info-card"><b>Sauna:</b> combinada com Pressat e Selozok pode causar tontura ao sair do calor. Hidrate-se bem antes/depois e levante devagar.</div>
+    <div class="info-card"><b>Pressão arterial:</b> vale medir em dias de treino mais puxado e levar os registros ao Dr. Ricardo nas consultas.</div>
+    <div class="info-card"><b>Joelhos:</b> com o peso atual, evite impacto forte (ex: descer escada correndo). Priorize descidas de elevador quando possível.</div>
+    <div class="section-label">Dose atual do Ozivy</div>
+    <div class="info-card" id="ozivyInfo"></div>
+    <button class="reset-btn" id="resetBtn">Zerar marcações desta semana</button>
+  </div>
+
+</div>
+
+<footer class="tabbar">
+  <button data-page="dia" class="active"><span class="ic">🏋️</span>Hoje</button>
+  <button data-page="semana"><span class="ic">📅</span>Semana</button>
+  <button data-page="saude"><span class="ic">❤️</span>Saúde</button>
+</footer>
+
+<script>
+// ---------- DADOS ----------
+const DIAS = [
+  { id:'seg', nome:'Seg', nomeFull:'Segunda-feira', tipo:'treino', letra:'A',
+    titulo:'Treino A — Peito, Tríceps & Abdômen', desc:'Força de empurrar + abdômen supra',
+    grupos: [
+      { nome:'Aquecimento', itens:[
+        { ex:'Esteira ou Elíptico', info:'5 a 10 min, ritmo leve' },
+      ]},
+      { nome:'Peitorais', itens:[
+        { ex:'Supino Reto Articulado', info:'3x12' },
+        { ex:'Supino Inclinado Articulado', info:'3x12' },
+        { ex:'Peck-Deck (peitoral)', info:'3x12' },
+        { ex:'Cross-Over', info:'3x12' },
+      ]},
+      { nome:'Tríceps', itens:[
+        { ex:'Tríceps Pulley', info:'3x12' },
+        { ex:'Tríceps Testa', info:'3x12' },
+        { ex:'Tríceps Polia', info:'3x12' },
+      ]},
+      { nome:'Abdômen', itens:[
+        { ex:'Abdominal Supra', info:'3x o máximo possível' },
+      ]},
+    ]
+  },
+  { id:'ter', nome:'Ter', nomeFull:'Terça-feira', tipo:'treino', letra:'C',
+    titulo:'Treino C — Costas, Bíceps & Antebraço', desc:'Força de puxar + abdômen oblíquo',
+    grupos: [
+      { nome:'Aquecimento', itens:[
+        { ex:'Esteira ou Bike', info:'5 a 10 min, ritmo leve' },
+      ]},
+      { nome:'Dorsais', itens:[
+        { ex:'Puxador Frente', info:'3x12' },
+        { ex:'Remada Sentada', info:'3x12' },
+        { ex:'Peck-Deck Invertido (costas)', info:'3x12' },
+      ]},
+      { nome:'Bíceps', itens:[
+        { ex:'Rosca Alternada', info:'3x12' },
+        { ex:'Rosca Neutra', info:'3x12' },
+        { ex:'Rosca Scott', info:'3x12' },
+      ]},
+      { nome:'Antebraço', itens:[
+        { ex:'Rosca de Punho', info:'3x15' },
+        { ex:'Rosca Pêndulo', info:'3x15' },
+      ]},
+      { nome:'Abdômen', itens:[
+        { ex:'Abdominal Oblíquo', info:'3x o máximo possível' },
+      ]},
+    ]
+  },
+  { id:'qua', nome:'Qua', nomeFull:'Quarta-feira', tipo:'treino', letra:'B',
+    titulo:'Treino B — Ombro, Pernas & Glúteo', desc:'Força de pernas + abdômen infra. Descanse bem antes da corrida de sexta.',
+    grupos: [
+      { nome:'Aquecimento', itens:[
+        { ex:'Esteira ou Elíptico', info:'5 a 10 min, ritmo leve' },
+      ]},
+      { nome:'Deltóide', itens:[
+        { ex:'Elevação Lateral', info:'3x12' },
+        { ex:'Elevação Frontal', info:'3x12' },
+        { ex:'Desenvolvimento Articulado', info:'3x12' },
+      ]},
+      { nome:'Membros Inferiores', itens:[
+        { ex:'Agachamento', info:'3x12' },
+        { ex:'Leg 90', info:'3x10' },
+        { ex:'Cadeira Extensora', info:'3x12' },
+        { ex:'Adução de Quadril', info:'3x15' },
+        { ex:'Abdução de Quadril', info:'3x15' },
+      ]},
+      { nome:'Glúteo', itens:[
+        { ex:'Glúteo na Máquina', info:'3x12' },
+        { ex:'Elevação Pélvica', info:'3x15' },
+      ]},
+      { nome:'Abdômen', itens:[
+        { ex:'Abdominal Infra', info:'3x o máximo possível' },
+      ]},
+    ]
+  },
+  { id:'qui', nome:'Qui', nomeFull:'Quinta-feira', tipo:'descanso',
+    titulo:'Descanso total', desc:'Nenhum exercício hoje. Recuperação para as 3 corridas do fim de semana.',
+    grupos: []
+  },
+  { id:'sex', nome:'Sex', nomeFull:'Sexta-feira', tipo:'corrida',
+    titulo:'Corrida leve', desc:'Ritmo conversacional, sem pressa', km:'3–4 km',
+    dica:'Pernas já descansaram desde quarta. Se sentir cansaço, reduza para uma caminhada leve.'
+  },
+  { id:'sab', nome:'Sáb', nomeFull:'Sábado', tipo:'corrida',
+    titulo:'Corrida principal', desc:'Sua corrida mais longa da semana', km:'5 km',
+    dica:'Se as pernas estiverem muito fadigadas, reduza para 3 km ou intercale trote com caminhada.'
+  },
+  { id:'dom', nome:'Dom', nomeFull:'Domingo', tipo:'corrida',
+    titulo:'Corrida curta + Ozivy', desc:'Dia da aplicação semanal', km:'2 km', ozivy:true,
+    dica:'Mantenha bem leve. Se preferir, troque por uma caminhada — hoje o foco é não sobrecarregar o corpo no dia da aplicação.'
+  },
+];
+
+function ytLink(nome) {
+  const q = encodeURIComponent('como fazer ' + nome.replace(/\(.*?\)/g,'').trim());
+  return 'https://www.youtube.com/results?search_query=' + q;
+}
+
+// ---------- ESTADO (localStorage) ----------
+function weekKey() {
+  const d = new Date();
+  const onejan = new Date(d.getFullYear(), 0, 1);
+  const week = Math.ceil((((d - onejan) / 86400000) + onejan.getDay() + 1) / 7);
+  return `treino-xandy-${d.getFullYear()}-w${week}`;
+}
+function loadState() {
+  try {
+    const raw = localStorage.getItem(weekKey());
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) { return {}; }
+}
+function saveState(state) {
+  try { localStorage.setItem(weekKey(), JSON.stringify(state)); } catch (e) {}
+}
+let state = loadState();
+
+function itemKey(diaId, grupoIdx, itemIdx) {
+  return `${diaId}-${grupoIdx}-${itemIdx}`;
+}
+
+// ---------- DIA ATUAL ----------
+const WEEKDAY_MAP = [6,0,1,2,3,4,5]; // getDay(): 0=Dom..6=Sab -> index into DIAS (seg=0...dom=6)
+function hojeIndex() {
+  return WEEKDAY_MAP[new Date().getDay()];
+}
+let activeIdx = hojeIndex();
+
+// ---------- RENDER NAV ----------
+const dayNav = document.getElementById('dayNav');
+function dayDoneRatio(dia) {
+  if (dia.tipo !== 'treino') return null;
+  let total = 0, done = 0;
+  dia.grupos.forEach((g, gi) => g.itens.forEach((it, ii) => {
+    total++;
+    if (state[itemKey(dia.id, gi, ii)]) done++;
+  }));
+  return total ? done / total : 0;
+}
+function renderNav() {
+  dayNav.innerHTML = '';
+  DIAS.forEach((dia, i) => {
+    const btn = document.createElement('button');
+    btn.textContent = dia.nome;
+    if (i === activeIdx) btn.classList.add('active');
+    if (dia.tipo === 'descanso') btn.classList.add('rest');
+    const ratio = dayDoneRatio(dia);
+    if (ratio === 1) btn.classList.add('done');
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    btn.appendChild(dot);
+    btn.addEventListener('click', () => { activeIdx = i; render(); goPage('dia'); });
+    dayNav.appendChild(btn);
+  });
+}
+
+// ---------- RENDER DIA ----------
+function renderDia() {
+  const dia = DIAS[activeIdx];
+  const tagEl = document.getElementById('dayTag');
+  tagEl.textContent = dia.tipo === 'treino' ? `Treino ${dia.letra}` : dia.tipo === 'corrida' ? 'Corrida' : 'Descanso';
+  tagEl.className = 'tag ' + dia.tipo;
+  document.getElementById('dayTitle').textContent = dia.titulo;
+  document.getElementById('dayDesc').textContent = dia.desc;
+  document.getElementById('ozivyFlag').style.display = dia.ozivy ? 'flex' : 'none';
+
+  const content = document.getElementById('dayContent');
+  content.innerHTML = '';
+
+  if (dia.tipo === 'descanso') {
+    const d = document.createElement('div');
+    d.className = 'rest-card';
+    d.innerHTML = `<div class="big">😴</div><div>Aproveite para descansar. Nada de treino ou corrida hoje.</div>`;
+    content.appendChild(d);
+    return;
+  }
+
+  if (dia.tipo === 'corrida') {
+    const d = document.createElement('div');
+    d.className = 'run-card';
+    const [num, unit] = dia.km.split(' ');
+    d.innerHTML = `<div class="km">${dia.km.replace(' km','')}<span> km</span></div><div class="tip">${dia.dica}</div>`;
+    content.appendChild(d);
+    const link = document.createElement('a');
+    link.href = ytLink('como começar a correr 5km');
+    link.target = '_blank';
+    link.className = 'card';
+    link.style.justifyContent = 'center';
+    link.style.textDecoration = 'none';
+    link.innerHTML = `<div class="card-body" style="text-align:center;"><div class="name" style="color:#ff8080;">▶ Dicas de corrida no YouTube</div></div>`;
+    content.appendChild(link);
+    return;
+  }
+
+  // treino: progresso
+  const ratio = dayDoneRatio(dia);
+  const prog = document.createElement('div');
+  let total = 0, done = 0;
+  dia.grupos.forEach((g, gi) => g.itens.forEach((it, ii) => { total++; if (state[itemKey(dia.id, gi, ii)]) done++; }));
+  prog.innerHTML = `<div class="progress-bar"><div style="width:${(ratio*100).toFixed(0)}%"></div></div><div class="progress-txt">${done} de ${total} exercícios concluídos</div>`;
+  content.appendChild(prog);
+
+  dia.grupos.forEach((grupo, gi) => {
+    const label = document.createElement('div');
+    label.className = 'section-label';
+    label.textContent = grupo.nome;
+    content.appendChild(label);
+
+    grupo.itens.forEach((item, ii) => {
+      const key = itemKey(dia.id, gi, ii);
+      const checked = !!state[key];
+
+      const card = document.createElement('div');
+      card.className = 'card' + (checked ? ' checked' : '');
+
+      const chk = document.createElement('div');
+      chk.className = 'check' + (checked ? ' on' : '');
+      chk.textContent = checked ? '✓' : '';
+      chk.addEventListener('click', () => {
+        state[key] = !state[key];
+        saveState(state);
+        render();
+      });
+
+      const body = document.createElement('div');
+      body.className = 'card-body';
+      body.innerHTML = `<div class="name${checked ? ' strike' : ''}">${item.ex}</div><div class="meta">${item.info}</div>`;
+
+      const yt = document.createElement('a');
+      yt.className = 'yt-link';
+      yt.href = ytLink(item.ex);
+      yt.target = '_blank';
+      yt.rel = 'noopener';
+      yt.textContent = '▶';
+      yt.title = 'Ver como fazer no YouTube';
+
+      card.appendChild(chk);
+      card.appendChild(body);
+      card.appendChild(yt);
+      content.appendChild(card);
+    });
+  });
+}
+
+// ---------- RENDER SEMANA ----------
+function renderSemana() {
+  const grid = document.getElementById('weekGrid');
+  grid.innerHTML = '';
+  DIAS.forEach((dia, i) => {
+    const row = document.createElement('div');
+    row.className = 'week-row';
+    let badgeColor = '#2f6db5', badgeBg = 'rgba(47,109,181,0.2)', badgeText = `Treino ${dia.letra || ''}`;
+    if (dia.tipo === 'descanso') { badgeColor = '#e0c070'; badgeBg = 'rgba(194,161,78,0.2)'; badgeText = 'Descanso'; }
+    if (dia.tipo === 'corrida') { badgeColor = '#6fdb9a'; badgeBg = 'rgba(47,158,92,0.2)'; badgeText = dia.km; }
+    row.innerHTML = `
+      <div class="d">${dia.nomeFull.split('-')[0]}</div>
+      <div class="t">${dia.titulo}${dia.ozivy ? ' · 💉 Ozivy' : ''}</div>
+      <div class="badge" style="color:${badgeColor};background:${badgeBg};">${badgeText}</div>
+    `;
+    row.addEventListener('click', () => { activeIdx = i; render(); goPage('dia'); });
+    grid.appendChild(row);
+  });
+}
+
+// ---------- PÁGINAS / TABS ----------
+function goPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('visible'));
+  document.getElementById('page-' + name).classList.add('visible');
+  document.querySelectorAll('footer.tabbar button').forEach(b => b.classList.toggle('active', b.dataset.page === name));
+  document.getElementById('dayNav').style.display = name === 'dia' ? 'grid' : 'none';
+}
+document.querySelectorAll('footer.tabbar button').forEach(b => {
+  b.addEventListener('click', () => goPage(b.dataset.page));
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (confirm('Zerar todas as marcações desta semana?')) {
+    state = {};
+    saveState(state);
+    render();
+  }
+});
+
+// ---------- INFO OZIVY (cálculo de dose por data) ----------
+function renderOzivyInfo() {
+  const inicio = new Date(2026, 8, 6); // 06/09/2026, dose 0.25mg
+  const hoje = new Date();
+  const dias = Math.floor((hoje - inicio) / 86400000);
+  const semanas = Math.floor(dias / 7);
+  let dose, proxima;
+  if (semanas < 4) { dose = '0,25 mg (19 clicks)'; }
+  else if (semanas < 8) { dose = '0,5 mg (37 clicks)'; }
+  else { dose = '1 mg (75 clicks) — dose de manutenção'; }
+  document.getElementById('ozivyInfo').innerHTML =
+    `Com base no início em 06/09/2026, você está na faixa de <b>${dose}</b>. Confirme sempre com a orientação do Dr. Ricardo, especialmente em datas de transição de dose.`;
+}
+
+// ---------- RENDER GERAL ----------
+function updateHeader() {
+  const dia = DIAS[hojeIndex()];
+  const hoje = new Date();
+  const dataStr = hoje.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+  document.getElementById('todayLabel').textContent = dataStr.charAt(0).toUpperCase() + dataStr.slice(1);
+  document.getElementById('headerPill').textContent =
+    dia.tipo === 'treino' ? `Treino ${dia.letra}` : dia.tipo === 'corrida' ? `Corrida ${dia.km}` : 'Descanso';
+}
+
+function render() {
+  renderNav();
+  renderDia();
+  renderSemana();
+  updateHeader();
+}
+
+render();
+renderOzivyInfo();
+
+// ---------- SERVICE WORKER ----------
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
